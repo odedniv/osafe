@@ -1,0 +1,9 @@
+<resources>
+    <string name="app_name">OSafe</string>
+    <string name="key_ok">OK</string>
+    <string name="key_exit">Exit</string>
+    <!-- Shared Preferences Keys -->
+    <string name="iv_key">iv</string>
+    <string name="content_key">content</string>
+    <string name="content_hint">Write your secrets here...</string>
+</resources>
