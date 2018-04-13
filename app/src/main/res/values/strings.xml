@@ -1,9 +1,13 @@
 <resources>
     <string name="app_name">OSafe</string>
-    <string name="key_ok">OK</string>
-    <string name="key_exit">Exit</string>
-    <!-- Shared Preferences Keys -->
-    <string name="iv_key">iv</string>
-    <string name="content_key">content</string>
-    <string name="content_hint">Write your secrets here...</string>
+
+    <string name="content_hint">Write your secrets here&#8230;</string>
+    <string name="wrong_key">Wrong passphrase, try again.</string>
+
+    <string name="new_key">Enter your new passphrase&#8230;</string>
+    <string name="new_key_confirm">Enter the same passphrase again&#8230;</string>
+    <string name="new_key_save">Save</string>
+
+    <string name="existing_key">Enter your passphrase&#8230;</string>
+    <string name="existing_key_submit">Submit</string>
 </resources>

@@ -4,7 +4,7 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    tools:context="me.odedniv.osafe.MainActivity">
+    tools:context="me.odedniv.osafe.activities.ContentActivity">
 
     <EditText
         android:id="@+id/edit_content"
@@ -19,6 +19,7 @@
         android:gravity="top"
         android:hint="@string/content_hint"
         android:inputType="textMultiLine"
+        android:saveEnabled="false"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
