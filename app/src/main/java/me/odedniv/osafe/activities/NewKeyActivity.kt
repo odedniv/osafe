@@ -6,7 +6,6 @@ import android.os.Bundle
 import android.text.Editable
 import android.text.TextWatcher
 import android.util.Base64
-import android.widget.Toast
 import kotlinx.android.synthetic.main.activity_new_key.*
 import me.odedniv.osafe.Encryption
 import me.odedniv.osafe.R
@@ -17,9 +16,11 @@ class NewKeyActivity : BaseActivity() {
         setContentView(R.layout.activity_new_key)
 
         val textWatcher = object : TextWatcher {
-            override fun beforeTextChanged(p0: CharSequence?, p1: Int, p2: Int, p3: Int) { }
-            override fun afterTextChanged(p0: Editable?) { updateSaveEnabledState() }
-            override fun onTextChanged(p0: CharSequence?, p1: Int, p2: Int, p3: Int) { }
+            override fun afterTextChanged(s: Editable?) {
+                updateSaveEnabledState()
+            }
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) { }
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) { }
         }
         edit_key.addTextChangedListener(textWatcher)
         edit_key_confirm.addTextChangedListener(textWatcher)

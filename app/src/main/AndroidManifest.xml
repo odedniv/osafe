@@ -9,15 +9,26 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/AppTheme">
-        <activity android:name=".activities.ContentActivity" android:windowSoftInputMode="adjustResize">
+        <activity
+            android:name=".activities.ContentActivity"
+            android:windowSoftInputMode="adjustResize">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
 
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-        <activity android:name=".activities.NewKeyActivity" android:windowSoftInputMode="adjustResize" />
-        <activity android:name=".activities.ExistingKeyActivity" android:windowSoftInputMode="adjustResize" />
+        <activity
+            android:name=".activities.NewKeyActivity"
+            android:windowSoftInputMode="adjustResize" />
+        <activity
+            android:name=".activities.ExistingKeyActivity"
+            android:windowSoftInputMode="adjustResize" />
+
+        <service
+            android:name=".services.KeyStorageService"
+            android:enabled="true"
+            android:exported="false" />
     </application>
 
 </manifest>

@@ -7,9 +7,11 @@ abstract class BaseActivity : AppCompatActivity() {
     companion object {
         const val PREF_IV = "iv"
         const val PREF_CONTENT = "content"
+        const val PREF_KEY_TIMEOUT = "key_timeout"
 
         const val EXTRA_IV = "iv"
         const val EXTRA_KEY = "key"
+        const val EXTRA_KEY_TIMEOUT = "key_timeout"
     }
 
     private var _preferences: SharedPreferences? = null

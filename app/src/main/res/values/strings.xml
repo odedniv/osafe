@@ -10,4 +10,14 @@
 
     <string name="existing_key">Enter your passphrase&#8230;</string>
     <string name="existing_key_submit">Submit</string>
+    <string name="existing_key_timeout_title">Ask me again:</string>
+
+    <string name="key_timeout_immediately">Immediately</string>
+    <string name="key_timeout_1minute">1 minute</string>
+    <string name="key_timeout_5minutes">5 minutes</string>
+    <string name="key_timeout_1hour">1 hour</string>
+    <string name="key_timeout_6hours">6 hours</string>
+    <string name="key_timeout_1day">1 day</string>
+    <string name="key_timeout_1week">1 week</string>
+    <string name="key_timeout_never">Never</string>
 </resources>
