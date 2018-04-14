@@ -5,15 +5,14 @@ import android.content.Intent
 import android.os.Bundle
 import android.text.Editable
 import android.text.TextWatcher
-import android.util.Base64
-import kotlinx.android.synthetic.main.activity_new_key.*
-import me.odedniv.osafe.Encryption
+import kotlinx.android.synthetic.main.activity_new_passphrase.*
+import me.odedniv.osafe.models.Encryption
 import me.odedniv.osafe.R
 
-class NewKeyActivity : BaseActivity() {
+class NewPassphraseActivity : BaseActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_new_key)
+        setContentView(R.layout.activity_new_passphrase)
 
         val textWatcher = object : TextWatcher {
             override fun afterTextChanged(s: Editable?) {
@@ -22,8 +21,8 @@ class NewKeyActivity : BaseActivity() {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) { }
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) { }
         }
-        edit_key.addTextChangedListener(textWatcher)
-        edit_key_confirm.addTextChangedListener(textWatcher)
+        edit_passphrase.addTextChangedListener(textWatcher)
+        edit_passphrase_confirm.addTextChangedListener(textWatcher)
         button_save.setOnClickListener { save() }
     }
 
@@ -34,30 +33,19 @@ class NewKeyActivity : BaseActivity() {
 
     private fun updateSaveEnabledState() {
         button_save.isEnabled =
-                !edit_key.text.toString().isBlank()
-                && edit_key.text.toString().equals(edit_key_confirm.text.toString())
+                !edit_passphrase.text.toString().isBlank()
+                && edit_passphrase.text.toString().equals(edit_passphrase_confirm.text.toString())
     }
 
     private fun save() {
         setResult(
                 Activity.RESULT_OK,
                 Intent()
-                        .putExtra(EXTRA_IV, iv)
-                        .putExtra(EXTRA_KEY, key)
+                        .putExtra(EXTRA_ENCRYPTION, encryption)
         )
         finish()
     }
 
-    private val iv: ByteArray
-        get() {
-            val iv = Encryption.generateIv()
-            preferences
-                    .edit()
-                    .putString(PREF_IV, Base64.encodeToString(iv, Base64.DEFAULT))
-                    .apply()
-            return iv
-        }
-
-    private val key: ByteArray
-        get() = Encryption.generateKey(edit_key.text.toString())
+    private val encryption: Encryption
+        get() = Encryption(passphrase = edit_passphrase.text.toString())
 }

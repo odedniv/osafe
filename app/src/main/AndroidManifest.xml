@@ -19,14 +19,14 @@
             </intent-filter>
         </activity>
         <activity
-            android:name=".activities.NewKeyActivity"
+            android:name=".activities.NewPassphraseActivity"
             android:windowSoftInputMode="adjustResize" />
         <activity
-            android:name=".activities.ExistingKeyActivity"
+            android:name=".activities.ExistingPassphraseActivity"
             android:windowSoftInputMode="adjustResize" />
 
         <service
-            android:name=".services.KeyStorageService"
+            android:name=".services.EncryptionStorageService"
             android:enabled="true"
             android:exported="false" />
     </application>

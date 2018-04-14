@@ -5,10 +5,24 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:layout_gravity="center_vertical"
-    tools:context="me.odedniv.osafe.activities.ExistingKeyActivity">
+    tools:context="me.odedniv.osafe.activities.NewPassphraseActivity">
 
     <EditText
-        android:id="@+id/edit_key"
+        android:id="@+id/edit_passphrase"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginEnd="8dp"
+        android:layout_marginStart="8dp"
+        android:layout_marginTop="8dp"
+        android:ems="10"
+        android:hint="@string/new_passphrase"
+        android:inputType="textPassword"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <EditText
+        android:id="@+id/edit_passphrase_confirm"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginBottom="8dp"
@@ -16,52 +30,14 @@
         android:layout_marginStart="8dp"
         android:layout_marginTop="8dp"
         android:ems="10"
-        android:hint="@string/existing_key"
+        android:hint="@string/new_passphrase_confirm"
         android:inputType="textPassword"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent" />
-
-    <TextView
-        android:id="@+id/text_key_timeout_title"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginBottom="8dp"
-        android:layout_marginEnd="8dp"
-        android:layout_marginStart="8dp"
-        android:layout_marginTop="8dp"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/edit_key"
-        android:text="@string/existing_key_timeout_title" />
-
-
-    <TextView
-        android:id="@+id/text_key_timeout"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginBottom="8dp"
-        android:layout_marginEnd="8dp"
-        android:layout_marginStart="8dp"
-        android:layout_marginTop="8dp"
-        app:layout_constraintStart_toEndOf="@+id/text_key_timeout_title"
-        app:layout_constraintTop_toBottomOf="@+id/edit_key"
-        android:text="@string/key_timeout_immediately" />
-
-    <SeekBar
-        android:id="@+id/seek_key_timeout"
-        style="@style/Widget.AppCompat.SeekBar.Discrete"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginBottom="8dp"
-        android:layout_marginEnd="8dp"
-        android:layout_marginStart="8dp"
-        android:layout_marginTop="8dp"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/text_key_timeout_title" />
+        app:layout_constraintTop_toBottomOf="@+id/edit_passphrase" />
 
     <Button
-        android:id="@+id/button_submit"
+        android:id="@+id/button_save"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginBottom="8dp"
@@ -69,8 +45,9 @@
         android:layout_marginStart="8dp"
         android:layout_marginTop="8dp"
         android:enabled="false"
-        android:text="@string/existing_key_submit"
+        android:text="@string/new_passphrase_save"
+        app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/seek_key_timeout" />
+        app:layout_constraintTop_toBottomOf="@+id/edit_passphrase_confirm" />
 </android.support.constraint.ConstraintLayout>
