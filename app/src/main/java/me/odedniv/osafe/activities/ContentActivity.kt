@@ -7,6 +7,9 @@ import android.content.Intent
 import android.content.ServiceConnection
 import android.os.Bundle
 import android.os.IBinder
+import android.text.Editable
+import android.text.TextWatcher
+import android.view.View
 import android.view.WindowManager
 import android.widget.Toast
 import kotlinx.android.synthetic.main.activity_content.*
@@ -14,6 +17,8 @@ import me.odedniv.osafe.models.Encryption
 import me.odedniv.osafe.R
 import me.odedniv.osafe.models.Storage
 import me.odedniv.osafe.services.EncryptionStorageService
+import org.jetbrains.anko.doAsync
+import java.util.*
 import javax.crypto.BadPaddingException
 
 class ContentActivity : BaseActivity() {
@@ -21,17 +26,26 @@ class ContentActivity : BaseActivity() {
         private const val REQUEST_ENCRYPTION = 1
     }
 
-
     private var storage = Storage(this)
     private var encryption: Encryption? = null
     private var encryptionStorage : EncryptionStorageService.EncryptionStorageBinder? = null
+    private var lastStored: String? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
         setContentView(R.layout.activity_content)
+        setSupportActionBar(toolbar_content)
 
         startService(encryptionStorageIntent)
+
+        edit_content.addTextChangedListener(object : TextWatcher {
+            override fun afterTextChanged(s: Editable?) {
+                dumpLater()
+            }
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) { }
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) { }
+        })
     }
 
     override fun onResume() {
@@ -44,7 +58,7 @@ class ContentActivity : BaseActivity() {
     }
 
     override fun onPause() {
-        if (encryption != null) dump()
+        dumpNow()
         encryption = null
         unbindService(encryptionStorageConnection)
         super.onPause()
@@ -77,31 +91,77 @@ class ContentActivity : BaseActivity() {
             load()
         } else {
             // either timed out, never set
-            startActivityForResult(
-                    Intent(
-                            this,
-                            if (storage.message == null)
-                                NewPassphraseActivity::class.java
-                            else
-                                ExistingPassphraseActivity::class.java
-                    ),
-                    REQUEST_ENCRYPTION
-            )
+            doAsync {
+                val activity =
+                        if (storage.messageExists)
+                            ExistingPassphraseActivity::class.java
+                        else
+                            NewPassphraseActivity::class.java
+                runOnUiThread {
+                    startActivityForResult(
+                            Intent(this@ContentActivity, activity),
+                            REQUEST_ENCRYPTION
+                    )
+                }
+            }
+
         }
     }
 
-    private fun dump() {
-        storage.message = encryption!!.encrypt(edit_content.text.toString())
+    private var dumpLaterTimer: Timer? = null
+
+    private fun dumpLater() {
+        encryption ?: return
+
+        if (dumpLaterTimer != null) {
+            dumpLaterTimer?.cancel()
+            dumpLaterTimer = null
+        }
+
+        if (lastStored == edit_content.text.toString()) return
+
+        dumpLaterTimer = Timer()
+        dumpLaterTimer!!.schedule(object : TimerTask() {
+            override fun run() {
+                runOnUiThread { progress_spinner.visibility = View.VISIBLE }
+                dumpNow()
+                runOnUiThread { progress_spinner.visibility = View.GONE }
+            }
+        }, 2000)
+    }
+
+    private fun dumpNow() {
+        encryption ?: return
+
+        if (dumpLaterTimer != null) {
+            dumpLaterTimer?.cancel()
+            dumpLaterTimer = null
+        }
+
+        val content = edit_content.text.toString()
+        if (lastStored == content) return
+
+        storage.message = encryption!!.encrypt(content, storage.message)
+        lastStored = content
     }
 
     private fun load() {
-        if (storage.message == null) return
-        try {
-            edit_content.setText(encryption!!.decrypt(storage.message!!))
-        } catch (e: BadPaddingException) {
-            encryption = null
-            Toast.makeText(this, R.string.wrong_passphrase, Toast.LENGTH_SHORT).show()
-            getEncryption()
+        progress_spinner.visibility = View.VISIBLE
+        storage.getMessage {
+            edit_content.isEnabled = true
+            progress_spinner.visibility = View.GONE
+            it ?: return@getMessage
+            var content: String? = null
+            try {
+                content = encryption!!.decrypt(it)
+            } catch (e: BadPaddingException) {
+                encryption = null
+                Toast.makeText(this, R.string.wrong_passphrase, Toast.LENGTH_SHORT).show()
+                getEncryption()
+                return@getMessage
+            }
+            lastStored = content
+            edit_content.setText(content)
         }
     }
 
@@ -110,7 +170,7 @@ class ContentActivity : BaseActivity() {
             encryptionStorage = service as EncryptionStorageService.EncryptionStorageBinder
             // may have been received from onActivityResult,
             // meaning the content was already loaded
-            if (encryption == null) getEncryption()
+            encryption ?: getEncryption()
         }
         override fun onServiceDisconnected(name: ComponentName?) {
             encryptionStorage = null

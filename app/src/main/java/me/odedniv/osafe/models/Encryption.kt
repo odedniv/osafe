@@ -12,7 +12,8 @@ class Encryption private constructor(private val key: ByteArray) : Parcelable {
     @Suppress("ArrayInDataClass")
     data class Message(
             val iv: ByteArray,
-            val content: ByteArray
+            val content: ByteArray,
+            val version: Int
     )
 
     constructor(passphrase: String) : this(
@@ -40,12 +41,13 @@ class Encryption private constructor(private val key: ByteArray) : Parcelable {
         }
     }
 
-    fun encrypt(content: String): Message {
+    fun encrypt(content: String, previous: Encryption.Message?): Message {
         val iv: ByteArray = Utils.generateIv()
         return Message(
                 iv = iv,
                 content = cipher(Cipher.ENCRYPT_MODE, iv)
-                        .doFinal(content.toByteArray(Charsets.UTF_8))
+                        .doFinal(content.toByteArray(Charsets.UTF_8)),
+                version = if (previous != null) previous.version + 1 else 1
         )
     }
 

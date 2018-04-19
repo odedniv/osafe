@@ -6,6 +6,27 @@
     android:layout_height="match_parent"
     tools:context="me.odedniv.osafe.activities.ContentActivity">
 
+    <android.support.v7.widget.Toolbar
+        xmlns:android="http://schemas.android.com/apk/res/android"
+        xmlns:app="http://schemas.android.com/apk/res-auto"
+        android:id="@+id/toolbar_content"
+        android:layout_width="match_parent"
+        android:layout_height="?attr/actionBarSize"
+        android:background="@color/colorPrimary"
+        android:elevation="4dp"
+        android:theme="@style/ThemeOverlay.AppCompat.ActionBar"
+        app:popupTheme="@style/ThemeOverlay.AppCompat.Light">
+
+        <ProgressBar
+            android:id="@+id/progress_spinner"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="end"
+            android:indeterminate="true"
+            android:visibility="gone" />
+
+    </android.support.v7.widget.Toolbar>
+
     <EditText
         android:id="@+id/edit_content"
         android:layout_width="0dp"
@@ -20,8 +41,9 @@
         android:hint="@string/content_hint"
         android:inputType="textMultiLine"
         android:saveEnabled="false"
+        android:enabled="false"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent" />
+        app:layout_constraintTop_toBottomOf="@+id/toolbar_content" />
 </android.support.constraint.ConstraintLayout>
