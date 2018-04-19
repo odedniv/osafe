@@ -1,19 +1,123 @@
 package me.odedniv.osafe.models
 
 import android.content.Context
+import android.os.AsyncTask
 import android.util.Base64
 import android.util.Base64DataException
+import android.util.Log
 import com.beust.klaxon.Converter
 import com.beust.klaxon.JsonValue
 import com.beust.klaxon.Klaxon
 import com.beust.klaxon.KlaxonException
-import org.jetbrains.anko.doAsync
+import com.google.android.gms.auth.api.signin.GoogleSignInAccount
+import com.google.android.gms.tasks.Task
+import com.google.android.gms.tasks.Tasks
+import me.odedniv.osafe.models.storage.DriveStorageFormat
+import me.odedniv.osafe.models.storage.FileStorageFormat
+import me.odedniv.osafe.models.storage.StorageFormat
 import org.jetbrains.anko.runOnUiThread
-import java.io.FileNotFoundException
+import java.util.concurrent.Callable
 
 class Storage(private val context: Context) {
     companion object {
-        private const val FILENAME = "osafe.aes"
+        const val FILENAME = "osafe.aes"
+    }
+
+    private val storageFormats = ArrayList<StorageFormat>()
+
+    init {
+        storageFormats.add(FileStorageFormat(context))
+    }
+
+    fun setGoogleSignInAccount(googleSignInAccount: GoogleSignInAccount?) {
+        storageFormats.removeAll { it is DriveStorageFormat }
+        if (googleSignInAccount != null) {
+            storageFormats.add(DriveStorageFormat(context, googleSignInAccount))
+        }
+    }
+
+    private var _message: Encryption.Message? = null
+    val message: Encryption.Message?
+        get() = _message
+
+    val messageExists: Task<Boolean>
+        get() {
+            if (_message != null) Tasks.forResult(true)
+            val tasks = storageFormats.map { it.exists() }
+            return Tasks.whenAll(tasks)
+                    .onSuccessTask {
+                        Tasks.forResult(tasks.any { it.result })
+                    }
+        }
+
+    fun getMessage(receiver: (message: Encryption.Message?) -> Unit): Task<Unit> {
+        val finished = ArrayList<StorageFormat>(storageFormats.size)
+        return Tasks.whenAll(
+                storageFormats.map { storageFormat ->
+                    storageFormat.read()
+                            .onSuccessTask { content ->
+                                decode(content)
+                                        .onSuccessTask { message ->
+                                            useBestStorage(
+                                                    storageFormat,
+                                                    message,
+                                                    content,
+                                                    finished,
+                                                    receiver
+                                            )
+                                        }
+                            }
+                }
+        ).onSuccessTask { Tasks.forResult(Unit) }
+    }
+
+    fun setMessage(message: Encryption.Message?): Task<Unit> {
+        _message = message
+        return encode(message)
+                .onSuccessTask { content ->
+                    Tasks.whenAll(storageFormats.map { it.write(content) })
+                            .onSuccessTask { Tasks.forResult(Unit) }
+                }
+    }
+
+    @Synchronized
+    private fun useBestStorage(storageFormat: StorageFormat,
+                               message: Encryption.Message?,
+                               content: ByteArray?,
+                               finished: ArrayList<StorageFormat>,
+                               receiver: (message: Encryption.Message?) -> Unit): Task<Unit> {
+        val task =
+                if (finished.size == 0) {
+                    // using the first one anyway
+                    _message = message
+                    context.runOnUiThread { receiver(message) }
+                    Tasks.forResult(Unit)
+                } else {
+                    // comparing with the current best
+                    if (message == null) {
+                        if (_message != null) {
+                            // updating current storage format
+                            storageFormat.write(content)
+                        } else {
+                            Tasks.forResult(Unit)
+                        }
+                    } else {
+                        if (_message == null || _message!!.version < message.version) {
+                            // current is better than previous, updating all previous
+                            _message = message
+                            context.runOnUiThread { receiver(message) }
+                            Tasks.whenAll(finished.map { it.write(content) })
+                                    .onSuccessTask { Tasks.forResult(Unit) }
+                        } else if (_message!!.version > message.version) {
+                            // previous is better than current, updating current
+                            storageFormat.write(content)
+                        } else {
+                            Tasks.forResult(Unit)
+                        }
+                    }
+                }
+        finished.add(storageFormat)
+        return task
     }
 
     private val klaxon = Klaxon()
@@ -28,112 +132,33 @@ class Storage(private val context: Context) {
                         = Base64.decode(jv.string!!, Base64.DEFAULT)
             })
 
-    private var _message: Encryption.Message? = null
-    private var _messageRead = false
-
-    val messageExists: Boolean
-        get() = _message != null || fileExists() || driveExists()
-
-    var message: Encryption.Message?
-        get() = _message
-        set(message) {
-            _message = message
-            writeToFile(message)
-            writeToDrive(message)
-        }
-
-    fun getMessage(receiver: (message: Encryption.Message?) -> Unit) {
-        doAsync {
-            if (useBetterSource(readFromFile(), receiver)) {
-                // updating drive
-                writeToDrive(message)
+    private fun decode(content: ByteArray?): Task<Encryption.Message?> {
+        return Tasks.call(AsyncTask.THREAD_POOL_EXECUTOR, Callable {
+            if (content != null) {
+                try {
+                    klaxon.parse<Encryption.Message>(content.toString(Charsets.UTF_8))!!
+                } catch (e: KlaxonException) {
+                    Log.e("ParseMessage", "Failed parsing message", e)
+                    null
+                } catch (e: Base64DataException) {
+                    Log.e("ParseMessage", "Failed parsing message", e)
+                    null
+                } catch (e: NullPointerException) {
+                    Log.e("ParseMessage", "Failed parsing message", e)
+                    null
+                }
+            } else {
+                null
             }
-        }
-        doAsync {
-            if (useBetterSource(readFromDrive(), receiver)) {
-                // updating file
-                writeToFile(message)
-            }
-        }
+        })
     }
 
-    @Synchronized
-    private fun useBetterSource(message: Encryption.Message?, receiver: (message: Encryption.Message?) -> Unit): Boolean {
-        var replaced = false
-        // if no source read, or this message is better than the current better source
-        if (!_messageRead
-                || (message != null
-                        && (_message == null || _message!!.version < message.version))) {
-            replaced = _message != null
-            // replace better source and activate receiver
-            _messageRead = true
-            _message = message
-            context.runOnUiThread {
-                receiver(message)
-            }
-        }
-        return replaced
-    }
-
-
-    /*
-    File storage
-     */
-
-    private var _fileRead = false
-    private var _file: Encryption.Message? = null
-
-    private fun fileExists(): Boolean {
-        return if (_fileRead) {
-            _file != null
-        } else {
-            val file = context.getFileStreamPath(FILENAME)
-            file != null && file.exists()
-        }
-    }
-
-    private fun readFromFile(): Encryption.Message? {
-        if (_fileRead) return _file
-        try {
-            context.openFileInput(FILENAME).use {
-                _file = klaxon.parse<Encryption.Message>(it)!!
-            }
-        }
-        catch (e: FileNotFoundException) { }
-        catch (e: KlaxonException) { }
-        catch (e: Base64DataException) { }
-        catch (e: NullPointerException) { }
-        _fileRead = true
-        return _file
-    }
-
-    private fun writeToFile(message: Encryption.Message?) {
-        _file = message
-        _fileRead = true
-        if (message != null) {
-            context.openFileOutput(FILENAME, Context.MODE_PRIVATE).use {
-                it.write(klaxon.toJsonString(message).toByteArray(Charsets.UTF_8))
-            }
-        } else {
-            context.deleteFile(FILENAME)
-        }
-    }
-
-    /*
-    Drive storage
-     */
-
-    private var _driveRead = false
-    private var _drive: Encryption.Message? = null
-
-    private fun driveExists(): Boolean {
-        return false
-    }
-
-    private fun readFromDrive(): Encryption.Message? {
-        return _drive
-    }
-
-    private fun writeToDrive(message: Encryption.Message?) {
+    private fun encode(message: Encryption.Message?): Task<ByteArray?> {
+        return Tasks.call(AsyncTask.THREAD_POOL_EXECUTOR, Callable {
+            if (message != null)
+                klaxon.toJsonString(message).toByteArray(Charsets.UTF_8)
+            else
+                null
+        })
     }
 }

@@ -9,24 +9,34 @@ import android.os.Bundle
 import android.os.IBinder
 import android.text.Editable
 import android.text.TextWatcher
+import android.util.Log
 import android.view.View
 import android.view.WindowManager
 import android.widget.Toast
+import com.google.android.gms.auth.api.signin.GoogleSignIn
+import com.google.android.gms.auth.api.signin.GoogleSignInOptions
+import com.google.android.gms.common.ConnectionResult
+import com.google.android.gms.common.GoogleApiAvailability
+import com.google.android.gms.drive.Drive
+import com.google.android.gms.tasks.Task
+import com.google.android.gms.tasks.Tasks
 import kotlinx.android.synthetic.main.activity_content.*
-import me.odedniv.osafe.models.Encryption
 import me.odedniv.osafe.R
+import me.odedniv.osafe.models.Encryption
 import me.odedniv.osafe.models.Storage
 import me.odedniv.osafe.services.EncryptionStorageService
-import org.jetbrains.anko.doAsync
 import java.util.*
 import javax.crypto.BadPaddingException
 
 class ContentActivity : BaseActivity() {
     companion object {
-        private const val REQUEST_ENCRYPTION = 1
+        private const val REQUEST_GOOGLE_SIGN_IN = 1
+        private const val REQUEST_ENCRYPTION = 2
     }
 
-    private var storage = Storage(this)
+    private val storage = Storage(this)
+    private var googleSignInReceived = false
+    private var started = false
     private var encryption: Encryption? = null
     private var encryptionStorage : EncryptionStorageService.EncryptionStorageBinder? = null
     private var lastStored: String? = null
@@ -38,6 +48,11 @@ class ContentActivity : BaseActivity() {
         setSupportActionBar(toolbar_content)
 
         startService(encryptionStorageIntent)
+        bindService(
+                encryptionStorageIntent,
+                encryptionStorageConnection,
+                Context.BIND_AUTO_CREATE
+        )
 
         edit_content.addTextChangedListener(object : TextWatcher {
             override fun afterTextChanged(s: Editable?) {
@@ -48,19 +63,26 @@ class ContentActivity : BaseActivity() {
         })
     }
 
-    override fun onResume() {
-        super.onResume()
-        bindService(
-                encryptionStorageIntent,
-                encryptionStorageConnection,
-                Context.BIND_AUTO_CREATE
-        )
+    override fun onDestroy() {
+        unbindService(encryptionStorageConnection)
+        super.onDestroy()
+    }
+
+    override fun onStart() {
+        super.onStart()
+        started = true
+        getGoogleSignInAccount()
+        getEncryptionAndLoad()
+    }
+
+    override fun onStop() {
+        started = false
+        encryption = null
+        super.onStop()
     }
 
     override fun onPause() {
-        dumpNow()
-        encryption = null
-        unbindService(encryptionStorageConnection)
+        dump()
         super.onPause()
     }
 
@@ -68,6 +90,24 @@ class ContentActivity : BaseActivity() {
         super.onActivityResult(requestCode, resultCode, data)
 
         when (requestCode) {
+            REQUEST_GOOGLE_SIGN_IN -> {
+                if (resultCode != RESULT_OK) {
+                    googleSignInReceived = true
+                    getEncryptionAndLoad()
+                    return
+                }
+                GoogleSignIn.getSignedInAccountFromIntent(intent)
+                        .addOnSuccessListener {
+                            storage.setGoogleSignInAccount(it)
+                        }
+                        .addOnFailureListener {
+                            Log.e("GoogleSignIn", "Failed getting Google account", it)
+                        }
+                        .addOnCompleteListener {
+                            googleSignInReceived = true
+                            getEncryptionAndLoad()
+                        }
+            }
             REQUEST_ENCRYPTION -> {
                 if (resultCode != Activity.RESULT_OK) {
                     finish()
@@ -79,32 +119,53 @@ class ContentActivity : BaseActivity() {
                         encryption = encryption!!,
                         timeout = data.getLongExtra(EXTRA_ENCRYPTION_TIMEOUT, 0)
                 )
-                load()
+                getEncryptionAndLoad()
             }
         }
     }
 
-    private fun getEncryption() {
-        encryption = encryptionStorage?.encryption
+    private fun getGoogleSignInAccount() {
+        if (GoogleApiAvailability.getInstance().isGooglePlayServicesAvailable(this) != ConnectionResult.SUCCESS) {
+            googleSignInReceived = true
+            return
+        }
+        val googleSignInAccount = GoogleSignIn.getLastSignedInAccount(this)
+        if (googleSignInAccount != null) {
+            storage.setGoogleSignInAccount(googleSignInAccount)
+            googleSignInReceived = true
+            return
+        }
+        startActivityForResult(
+                GoogleSignIn.getClient(
+                        this,
+                        GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
+                                .requestScopes(Drive.SCOPE_FILE)
+                                .build()
+                ).signInIntent,
+                REQUEST_GOOGLE_SIGN_IN
+        )
+    }
+
+    private fun getEncryptionAndLoad() {
+        if (!started || !googleSignInReceived || encryptionStorage == null) return
+        if (encryption == null) encryption = encryptionStorage?.encryption
         if (encryption != null) {
             // from EncryptionStorageService
             load()
         } else {
             // either timed out, never set
-            doAsync {
-                val activity =
-                        if (storage.messageExists)
-                            ExistingPassphraseActivity::class.java
-                        else
-                            NewPassphraseActivity::class.java
-                runOnUiThread {
-                    startActivityForResult(
-                            Intent(this@ContentActivity, activity),
-                            REQUEST_ENCRYPTION
-                    )
-                }
-            }
-
+            storage.messageExists
+                    .addOnSuccessListener { exists ->
+                        val activity =
+                                if (exists)
+                                    ExistingPassphraseActivity::class.java
+                                else
+                                    NewPassphraseActivity::class.java
+                        startActivityForResult(
+                                Intent(this@ContentActivity, activity),
+                                REQUEST_ENCRYPTION
+                        )
+                    }
         }
     }
 
@@ -123,15 +184,18 @@ class ContentActivity : BaseActivity() {
         dumpLaterTimer = Timer()
         dumpLaterTimer!!.schedule(object : TimerTask() {
             override fun run() {
-                runOnUiThread { progress_spinner.visibility = View.VISIBLE }
-                dumpNow()
-                runOnUiThread { progress_spinner.visibility = View.GONE }
+                runOnUiThread {
+                    progress_spinner.visibility = View.VISIBLE
+                    dump().addOnSuccessListener {
+                        progress_spinner.visibility = View.GONE
+                    }
+                }
             }
-        }, 2000)
+        }, 5000)
     }
 
-    private fun dumpNow() {
-        encryption ?: return
+    private fun dump(): Task<Unit> {
+        encryption ?: return Tasks.forResult(Unit)
 
         if (dumpLaterTimer != null) {
             dumpLaterTimer?.cancel()
@@ -139,38 +203,45 @@ class ContentActivity : BaseActivity() {
         }
 
         val content = edit_content.text.toString()
-        if (lastStored == content) return
-
-        storage.message = encryption!!.encrypt(content, storage.message)
+        if (lastStored == content) return Tasks.forResult(Unit)
         lastStored = content
+
+        return encryption!!.encrypt(content, storage.message)
+                .onSuccessTask { message ->
+                    storage.setMessage(message)
+                }
     }
 
     private fun load() {
-        progress_spinner.visibility = View.VISIBLE
-        storage.getMessage {
+        storage.getMessage { message ->
+            if (message == null) return@getMessage
+
+            encryption!!.decrypt(message)
+                    .addOnSuccessListener { content ->
+                        lastStored = content
+                        edit_content.setText(content)
+                    }
+                    .addOnFailureListener { e ->
+                        when (e) {
+                            is BadPaddingException -> {
+                                encryption = null
+                                encryptionStorage?.clear()
+                                Toast.makeText(this, R.string.wrong_passphrase, Toast.LENGTH_SHORT).show()
+                                getEncryptionAndLoad()
+                            }
+                            else -> throw e
+                        }
+                    }
+        }.addOnSuccessListener {
             edit_content.isEnabled = true
             progress_spinner.visibility = View.GONE
-            it ?: return@getMessage
-            var content: String? = null
-            try {
-                content = encryption!!.decrypt(it)
-            } catch (e: BadPaddingException) {
-                encryption = null
-                Toast.makeText(this, R.string.wrong_passphrase, Toast.LENGTH_SHORT).show()
-                getEncryption()
-                return@getMessage
-            }
-            lastStored = content
-            edit_content.setText(content)
         }
     }
 
     private val encryptionStorageConnection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
             encryptionStorage = service as EncryptionStorageService.EncryptionStorageBinder
-            // may have been received from onActivityResult,
-            // meaning the content was already loaded
-            encryption ?: getEncryption()
+            getEncryptionAndLoad()
         }
         override fun onServiceDisconnected(name: ComponentName?) {
             encryptionStorage = null

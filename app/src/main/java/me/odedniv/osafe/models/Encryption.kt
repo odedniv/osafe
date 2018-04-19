@@ -1,20 +1,26 @@
 package me.odedniv.osafe.models
 
+import android.os.AsyncTask
 import android.os.Parcel
 import android.os.Parcelable
+import com.google.android.gms.tasks.Task
+import com.google.android.gms.tasks.Tasks
+import kotlinx.android.parcel.Parcelize
 import java.security.MessageDigest
 import java.util.*
+import java.util.concurrent.Callable
 import javax.crypto.Cipher
 import javax.crypto.spec.IvParameterSpec
 import javax.crypto.spec.SecretKeySpec
 
 class Encryption private constructor(private val key: ByteArray) : Parcelable {
     @Suppress("ArrayInDataClass")
+    @Parcelize
     data class Message(
             val iv: ByteArray,
             val content: ByteArray,
             val version: Int
-    )
+    ) : Parcelable
 
     constructor(passphrase: String) : this(
             key = Utils.generateKey(passphrase)
@@ -41,20 +47,24 @@ class Encryption private constructor(private val key: ByteArray) : Parcelable {
         }
     }
 
-    fun encrypt(content: String, previous: Encryption.Message?): Message {
-        val iv: ByteArray = Utils.generateIv()
-        return Message(
-                iv = iv,
-                content = cipher(Cipher.ENCRYPT_MODE, iv)
-                        .doFinal(content.toByteArray(Charsets.UTF_8)),
-                version = if (previous != null) previous.version + 1 else 1
-        )
+    fun encrypt(content: String, previous: Encryption.Message?): Task<Message> {
+        return Tasks.call(AsyncTask.THREAD_POOL_EXECUTOR, Callable {
+            val iv: ByteArray = Utils.generateIv()
+            Message(
+                    iv = iv,
+                    content = cipher(Cipher.ENCRYPT_MODE, iv)
+                            .doFinal(content.toByteArray(Charsets.UTF_8)),
+                    version = if (previous != null) previous.version + 1 else 1
+            )
+        })
     }
 
-    fun decrypt(message: Message): String {
-        return cipher(Cipher.DECRYPT_MODE, message.iv)
-                .doFinal(message.content)
-                .toString(Charsets.UTF_8)
+    fun decrypt(message: Message): Task<String> {
+        return Tasks.call(AsyncTask.THREAD_POOL_EXECUTOR, Callable {
+            cipher(Cipher.DECRYPT_MODE, message.iv)
+                    .doFinal(message.content)
+                    .toString(Charsets.UTF_8)
+        })
     }
 
     private fun cipher(mode: Int, iv: ByteArray): Cipher {

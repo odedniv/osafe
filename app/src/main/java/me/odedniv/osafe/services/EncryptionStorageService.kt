@@ -13,49 +13,61 @@ class EncryptionStorageService : Service() {
         private const val EXTRA_EXPIRE = "expire"
     }
 
+    private var bounds = 0
     private var _encryption: Encryption? = null
     private var expiration: Long = 0
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        if (intent?.getBooleanExtra(EXTRA_EXPIRE, false) == true) expired // check expiration
-        return super.onStartCommand(intent, flags, startId)
+        if (intent?.getBooleanExtra(EXTRA_EXPIRE, false) == true) {
+            if (expired && bounds == 0) {
+                stopSelf()
+            }
+        }
+        return START_NOT_STICKY
     }
 
     override fun onBind(intent: Intent): IBinder? {
+        bounds++
         return EncryptionStorageBinder()
     }
 
-    inner class EncryptionStorageBinder : Binder() {
-        fun set(encryption: Encryption, timeout: Long) {
-            if (timeout == 0L) {
-                _encryption = null
-                expiration = 0L
-                return
-            }
-            _encryption = encryption
-            expiration = System.currentTimeMillis() + timeout
-            // ensuring clearing of encryption from memory
-            alarmManager.set(
-                    AlarmManager.RTC,
-                    expiration,
-                    PendingIntent.getService(
-                            this@EncryptionStorageService,
-                            0,
-                            Intent(this@EncryptionStorageService, EncryptionStorageService::class.java)
-                                    .putExtra(EXTRA_EXPIRE, true),
-                            PendingIntent.FLAG_CANCEL_CURRENT
-                    )
-            )
-        }
+    override fun onUnbind(intent: Intent?): Boolean {
+        bounds--
+        if (bounds == 0 && expired)
+            stopSelf()
+        return super.onUnbind(intent)
+    }
+
+    inner class  EncryptionStorageBinder : Binder() {
+        fun clear() { this@EncryptionStorageService.clear() }
+        fun set(encryption: Encryption, timeout: Long) { this@EncryptionStorageService.set(encryption, timeout) }
 
         val encryption: Encryption?
             get() = if (!expired) _encryption else null
+
+    }
+
+    private fun clear() {
+        _encryption = null
+        expiration = 0L
+        alarmManager.cancel(pendingExpireIntent)
+    }
+
+    private fun set(encryption: Encryption, timeout: Long) {
+        if (timeout == 0L) {
+            clear()
+            return
+        }
+        _encryption = encryption
+        expiration = System.currentTimeMillis() + timeout
+        // ensuring clearing of encryption from memory
+        alarmManager.set(AlarmManager.RTC, expiration, pendingExpireIntent)
     }
 
     private val expired: Boolean
         get() {
             return if (System.currentTimeMillis() > expiration) {
-                _encryption = null
+                clear()
                 true
             } else {
                 false
@@ -64,4 +76,13 @@ class EncryptionStorageService : Service() {
 
     private val alarmManager: AlarmManager
         get() = getSystemService(ALARM_SERVICE) as AlarmManager
+
+    private val pendingExpireIntent: PendingIntent
+        get() = PendingIntent.getService(
+                this@EncryptionStorageService,
+                0,
+                Intent(this@EncryptionStorageService, EncryptionStorageService::class.java)
+                        .putExtra(EXTRA_EXPIRE, true),
+                PendingIntent.FLAG_CANCEL_CURRENT
+        )
 }
