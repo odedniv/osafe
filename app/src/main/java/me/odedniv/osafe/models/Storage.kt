@@ -70,7 +70,7 @@ class Storage(private val context: Context) {
                                     lastContent = content
                                 }
                                 if (lastStorageFormatIndex == index) {
-                                    receiver(Encryption.Message(content))
+                                    receiver(Encryption.Message.decode(content))
                                 }
                             }
                 }

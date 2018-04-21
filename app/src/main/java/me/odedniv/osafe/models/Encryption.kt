@@ -6,7 +6,7 @@ import android.os.Parcelable
 import com.google.android.gms.tasks.Task
 import com.google.android.gms.tasks.Tasks
 import java.security.MessageDigest
-import java.util.*
+import java.security.SecureRandom
 import java.util.concurrent.Callable
 import javax.crypto.Cipher
 import javax.crypto.spec.IvParameterSpec
@@ -16,38 +16,47 @@ class Encryption private constructor(private val key: ByteArray) : Parcelable {
     @Suppress("ArrayInDataClass")
     data class Message(val format: Format, val iv: ByteArray, val content: ByteArray) {
         enum class Format(val code: Byte) {
-            AES_128(0);
+            AES_128(1);
 
             companion object {
                 private val map = Format.values().associateBy(Format::code)
-                fun from(format: Byte) = map[format]
+                fun from(format: Byte) = map[format]!!
+            }
+
+            val keySize by lazy {
+                when (this) {
+                    AES_128 -> 16
+                }
             }
         }
 
-        constructor(encoded: ByteArray) : this(
-                format = Format.from(encoded[0])!!,
-                iv = encoded.copyOfRange(1, 17),
-                content = encoded.copyOfRange(17, encoded.size)
-        )
+        companion object {
+            fun decode(encoded: ByteArray): Message {
+                val stream = encoded.inputStream()
+                val format = Format.from(stream.read().toByte())
+                return Message(
+                        format = format,
+                        iv = stream.readBytes(format.keySize),
+                        content = stream.readBytes()
+                )
+            }
+        }
 
-        val encoded by lazy { byteArrayOf(format.code) + iv + content }
+        val encoded by lazy {
+            byteArrayOf(format.code) + iv.copyOf(format.keySize) + content
+        }
     }
-
-    constructor(passphrase: String) : this(
-            key = Utils.generateKey(passphrase)
-    )
 
     private object Utils {
         fun generateKey(passphrase: String): ByteArray {
             return MessageDigest
-                    .getInstance("SHA-1")
+                    .getInstance("SHA-512")
                     .digest(passphrase.toByteArray(Charsets.UTF_8))
-                    .copyOf(16)
         }
 
         fun generateIv(): ByteArray {
-            val iv = ByteArray(16)
-            Random().nextBytes(iv)
+            val iv = ByteArray(64)
+            SecureRandom().nextBytes(iv)
             return iv
         }
 
@@ -58,13 +67,18 @@ class Encryption private constructor(private val key: ByteArray) : Parcelable {
         }
     }
 
+    constructor(passphrase: String) : this(
+            key = Utils.generateKey(passphrase)
+    )
+
     fun encrypt(content: String): Task<Message> {
         return Tasks.call(AsyncTask.THREAD_POOL_EXECUTOR, Callable {
-            val iv: ByteArray = Utils.generateIv()
+            val format = Message.Format.AES_128
+            val iv: ByteArray = Utils.generateIv().copyOf(format.keySize)
             Message(
-                    format = Message.Format.AES_128,
+                    format = format,
                     iv = iv,
-                    content = cipher(Cipher.ENCRYPT_MODE, Message.Format.AES_128, iv)
+                    content = cipher(Cipher.ENCRYPT_MODE, format, iv)
                             .doFinal(content.toByteArray(Charsets.UTF_8))
             )
         })
@@ -87,7 +101,7 @@ class Encryption private constructor(private val key: ByteArray) : Parcelable {
         cipher.init(
                 mode,
                 SecretKeySpec(
-                        key,
+                        key.copyOf(format.keySize),
                         when (format) {
                             Message.Format.AES_128 -> "AES"
                         }
