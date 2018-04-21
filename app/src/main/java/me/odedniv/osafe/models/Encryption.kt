@@ -14,9 +14,9 @@ import javax.crypto.spec.SecretKeySpec
 
 class Encryption private constructor(private val key: ByteArray) : Parcelable {
     @Suppress("ArrayInDataClass")
-    data class Message(val format: Format, val iv: ByteArray, val content: ByteArray) {
+    data class Message(val format: Format, val iv: ByteArray, val signature: ByteArray, val content: ByteArray) {
         enum class Format(val code: Byte) {
-            AES_128(1);
+            AES_128_SHA_1(1);
 
             companion object {
                 private val map = Format.values().associateBy(Format::code)
@@ -25,7 +25,13 @@ class Encryption private constructor(private val key: ByteArray) : Parcelable {
 
             val keySize by lazy {
                 when (this) {
-                    AES_128 -> 16
+                    AES_128_SHA_1 -> 16
+                }
+            }
+
+            val signer by lazy {
+                when (this) {
+                    AES_128_SHA_1 -> MessageDigest.getInstance("SHA-1")!!
                 }
             }
         }
@@ -34,16 +40,21 @@ class Encryption private constructor(private val key: ByteArray) : Parcelable {
             fun decode(encoded: ByteArray): Message {
                 val stream = encoded.inputStream()
                 val format = Format.from(stream.read().toByte())
+                val iv = ByteArray(format.keySize)
+                stream.read(iv)
+                val signature = ByteArray(format.signer.digestLength)
+                stream.read(signature)
                 return Message(
                         format = format,
-                        iv = stream.readBytes(format.keySize),
+                        iv = iv,
+                        signature = signature,
                         content = stream.readBytes()
                 )
             }
         }
 
         val encoded by lazy {
-            byteArrayOf(format.code) + iv.copyOf(format.keySize) + content
+            byteArrayOf(format.code) + iv + signature + content
         }
     }
 
@@ -73,29 +84,36 @@ class Encryption private constructor(private val key: ByteArray) : Parcelable {
 
     fun encrypt(content: String): Task<Message> {
         return Tasks.call(AsyncTask.THREAD_POOL_EXECUTOR, Callable {
-            val format = Message.Format.AES_128
+            val format = Message.Format.AES_128_SHA_1
             val iv: ByteArray = Utils.generateIv().copyOf(format.keySize)
+            val contentBytes = content.toByteArray(Charsets.UTF_8)
+
             Message(
                     format = format,
                     iv = iv,
+                    signature = format.signer.digest(contentBytes),
                     content = cipher(Cipher.ENCRYPT_MODE, format, iv)
-                            .doFinal(content.toByteArray(Charsets.UTF_8))
+                            .doFinal(contentBytes)
             )
         })
     }
 
     fun decrypt(message: Message): Task<String> {
         return Tasks.call(AsyncTask.THREAD_POOL_EXECUTOR, Callable {
-            cipher(Cipher.DECRYPT_MODE, message.format, message.iv)
+            val contentBytes = cipher(Cipher.DECRYPT_MODE, message.format, message.iv)
                     .doFinal(message.content)
-                    .toString(Charsets.UTF_8)
+            if (!message.signature.contentEquals(message.format.signer.digest(contentBytes))) {
+                throw RuntimeException("Signature verification failed")
+            }
+
+            contentBytes.toString(Charsets.UTF_8)
         })
     }
 
     private fun cipher(mode: Int, format: Message.Format, iv: ByteArray): Cipher {
         val cipher = Cipher.getInstance(
                 when (format) {
-                    Message.Format.AES_128 -> "AES/CBC/PKCS5Padding"
+                    Message.Format.AES_128_SHA_1 -> "AES/CBC/PKCS5Padding"
                 }
         )
         cipher.init(
@@ -103,7 +121,7 @@ class Encryption private constructor(private val key: ByteArray) : Parcelable {
                 SecretKeySpec(
                         key.copyOf(format.keySize),
                         when (format) {
-                            Message.Format.AES_128 -> "AES"
+                            Message.Format.AES_128_SHA_1 -> "AES"
                         }
                 ),
                 IvParameterSpec(iv)

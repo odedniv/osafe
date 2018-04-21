@@ -218,21 +218,18 @@ class ContentActivity : BaseActivity() {
     private fun load() {
         storage.get { message ->
             if (message == null) return@get
+            if (encryption == null) return@get
 
             encryption!!.decrypt(message)
                     .addOnSuccessListener { content ->
                         lastStored = content
                         edit_content.setText(content)
                     }
-                    .addOnFailureListener { e ->
-                        when (e) {
-                            is BadPaddingException -> {
-                                encryption = null
-                                encryptionStorage?.clear()
-                                Toast.makeText(this, R.string.wrong_passphrase, Toast.LENGTH_SHORT).show()
-                                getEncryptionAndLoad()
-                            }
-                        }
+                    .addOnFailureListener {
+                        encryption = null
+                        encryptionStorage?.clear()
+                        Toast.makeText(this, R.string.wrong_passphrase, Toast.LENGTH_SHORT).show()
+                        getEncryptionAndLoad()
                     }
         }.addOnSuccessListener {
             edit_content.isEnabled = true
