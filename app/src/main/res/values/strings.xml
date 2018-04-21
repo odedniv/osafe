@@ -1,13 +1,19 @@
 <resources>
     <string name="app_name">OSafe</string>
 
+    <!-- ContentActivity -->
     <string name="content_hint">Write your secrets here&#8230;</string>
     <string name="wrong_passphrase">Wrong passphrase, try again.</string>
+    <string name="resolve_conflict_title">%1$s has been updated since the last update here, what would you like to do?</string>
+    <string name="resolve_conflict_overwrite">Overwrite it</string>
+    <string name="resolve_conflict_use">Use it</string>
 
+    <!-- NewPassphraseActivity -->
     <string name="new_passphrase">Enter your new passphrase&#8230;</string>
     <string name="new_passphrase_confirm">Enter the same passphrase again&#8230;</string>
     <string name="new_passphrase_save">Save</string>
 
+    <!-- ExistingPassphraseActivity -->
     <string name="existing_passphrase">Enter your passphrase&#8230;</string>
     <string name="existing_passphrase_submit">Submit</string>
     <string name="existing_encryption_timeout_title">Ask me again:</string>
@@ -20,4 +26,7 @@
     <string name="encryption_timeout_1day">1 day</string>
     <string name="encryption_timeout_1week">1 week</string>
     <string name="encryption_timeout_never">Never</string>
+
+    <!-- Models -->
+    <string name="storage_format_drive">Google Drive</string>
 </resources>

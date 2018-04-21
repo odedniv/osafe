@@ -1,6 +1,7 @@
 package me.odedniv.osafe.activities
 
 import android.app.Activity
+import android.app.AlertDialog
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
@@ -19,11 +20,14 @@ import com.google.android.gms.common.ConnectionResult
 import com.google.android.gms.common.GoogleApiAvailability
 import com.google.android.gms.drive.Drive
 import com.google.android.gms.tasks.Task
+import com.google.android.gms.tasks.TaskCompletionSource
 import com.google.android.gms.tasks.Tasks
 import kotlinx.android.synthetic.main.activity_content.*
 import me.odedniv.osafe.R
+import me.odedniv.osafe.extensions.logFailure
 import me.odedniv.osafe.models.Encryption
 import me.odedniv.osafe.models.Storage
+import me.odedniv.osafe.models.storage.StorageFormat
 import me.odedniv.osafe.services.EncryptionStorageService
 import java.util.*
 import javax.crypto.BadPaddingException
@@ -96,17 +100,15 @@ class ContentActivity : BaseActivity() {
                     getEncryptionAndLoad()
                     return
                 }
-                GoogleSignIn.getSignedInAccountFromIntent(intent)
+                GoogleSignIn.getSignedInAccountFromIntent(data)
                         .addOnSuccessListener {
                             storage.setGoogleSignInAccount(it)
-                        }
-                        .addOnFailureListener {
-                            Log.e("GoogleSignIn", "Failed getting Google account", it)
                         }
                         .addOnCompleteListener {
                             googleSignInReceived = true
                             getEncryptionAndLoad()
                         }
+                        .logFailure("GoogleSignIn", "Failed getting Google account")
             }
             REQUEST_ENCRYPTION -> {
                 if (resultCode != Activity.RESULT_OK) {
@@ -149,24 +151,25 @@ class ContentActivity : BaseActivity() {
     private fun getEncryptionAndLoad() {
         if (!started || !googleSignInReceived || encryptionStorage == null) return
         if (encryption == null) encryption = encryptionStorage?.encryption
-        if (encryption != null) {
-            // from EncryptionStorageService
-            load()
-        } else {
-            // either timed out, never set
-            storage.messageExists
-                    .addOnSuccessListener { exists ->
-                        val activity =
-                                if (exists)
-                                    ExistingPassphraseActivity::class.java
-                                else
-                                    NewPassphraseActivity::class.java
-                        startActivityForResult(
-                                Intent(this@ContentActivity, activity),
-                                REQUEST_ENCRYPTION
-                        )
-                    }
-        }
+        resolveConflicts().addOnSuccessListener {
+            if (encryption != null) {
+                // from EncryptionStorageService
+                load()
+            } else {
+                // either timed out, never set
+                storage.exists.addOnSuccessListener { exists ->
+                    val activity =
+                            if (exists)
+                                ExistingPassphraseActivity::class.java
+                            else
+                                NewPassphraseActivity::class.java
+                    startActivityForResult(
+                            Intent(this@ContentActivity, activity),
+                            REQUEST_ENCRYPTION
+                    )
+                }.logFailure("Load", "Failed checking existing")
+            }
+        }.logFailure("Load", "Failed resolving conflicts")
     }
 
     private var dumpLaterTimer: Timer? = null
@@ -206,15 +209,15 @@ class ContentActivity : BaseActivity() {
         if (lastStored == content) return Tasks.forResult(Unit)
         lastStored = content
 
-        return encryption!!.encrypt(content, storage.message)
+        return encryption!!.encrypt(content)
                 .onSuccessTask { message ->
-                    storage.setMessage(message)
-                }
+                    storage.set(message!!)
+                }.logFailure("Dump", "Failed encrypting")
     }
 
     private fun load() {
-        storage.getMessage { message ->
-            if (message == null) return@getMessage
+        storage.get { message ->
+            if (message == null) return@get
 
             encryption!!.decrypt(message)
                     .addOnSuccessListener { content ->
@@ -229,13 +232,39 @@ class ContentActivity : BaseActivity() {
                                 Toast.makeText(this, R.string.wrong_passphrase, Toast.LENGTH_SHORT).show()
                                 getEncryptionAndLoad()
                             }
-                            else -> throw e
                         }
                     }
         }.addOnSuccessListener {
             edit_content.isEnabled = true
             progress_spinner.visibility = View.GONE
+        }.logFailure("Load", "Failed loading")
+    }
+
+    private fun resolveConflicts(): Task<Unit> {
+        return storage.conflicts.onSuccessTask { conflictedStorageFormats ->
+            resolveNextConflict(conflictedStorageFormats!!)
         }
+    }
+
+    private fun resolveNextConflict(conflictedStorageFormats: List<StorageFormat>, index: Int = conflictedStorageFormats.size - 1): Task<Unit> {
+        if (index == -1) return Tasks.forResult(Unit)
+        val currentStorageFormat = conflictedStorageFormats[index]
+        val task = TaskCompletionSource<Unit>()
+
+        AlertDialog.Builder(this)
+                .setMessage(getString(R.string.resolve_conflict_title, getString(currentStorageFormat.stringId)))
+                .setNegativeButton(R.string.resolve_conflict_overwrite, { _, _ ->
+                    currentStorageFormat.clear()
+                    resolveNextConflict(conflictedStorageFormats, index - 1)
+                            .addOnSuccessListener { task.setResult(Unit) }
+                })
+                .setPositiveButton(R.string.resolve_conflict_use, { _, _ ->
+                    storage.resolveConflictWith(currentStorageFormat)
+                    task.setResult(Unit)
+                })
+                .show()
+
+        return task.task
     }
 
     private val encryptionStorageConnection = object : ServiceConnection {

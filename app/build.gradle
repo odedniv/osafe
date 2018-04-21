@@ -3,10 +3,6 @@ apply plugin: 'kotlin-android'
 apply plugin: 'kotlin-android-extensions'
 apply plugin: 'org.jetbrains.kotlin.android.extensions'
 
-androidExtensions {
-    experimental = true
-}
-
 android {
     compileSdkVersion 26
     defaultConfig {
@@ -31,7 +27,6 @@ dependencies {
     implementation 'com.android.support:appcompat-v7:26.1.0'
     implementation 'com.android.support.constraint:constraint-layout:1.1.0'
     implementation "org.jetbrains.anko:anko-commons:$anko_version"
-    implementation 'com.beust:klaxon:3.0.1'
     implementation "com.google.android.gms:play-services-auth:$play_services_version"
     implementation "com.google.android.gms:play-services-drive:$play_services_version"
     testImplementation 'junit:junit:4.12'

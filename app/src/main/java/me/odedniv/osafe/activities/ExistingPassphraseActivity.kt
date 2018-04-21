@@ -9,6 +9,8 @@ import android.widget.SeekBar
 import kotlinx.android.synthetic.main.activity_existing_passphrase.*
 import me.odedniv.osafe.models.Encryption
 import me.odedniv.osafe.R
+import me.odedniv.osafe.extensions.PREF_ENCRYPTION_TIMEOUT
+import me.odedniv.osafe.extensions.preferences
 
 class ExistingPassphraseActivity : BaseActivity() {
     companion object {

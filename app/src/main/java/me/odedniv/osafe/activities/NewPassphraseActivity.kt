@@ -34,7 +34,7 @@ class NewPassphraseActivity : BaseActivity() {
     private fun updateSaveEnabledState() {
         button_save.isEnabled =
                 !edit_passphrase.text.toString().isBlank()
-                && edit_passphrase.text.toString().equals(edit_passphrase_confirm.text.toString())
+                && edit_passphrase.text.toString() == edit_passphrase_confirm.text.toString()
     }
 
     private fun save() {
