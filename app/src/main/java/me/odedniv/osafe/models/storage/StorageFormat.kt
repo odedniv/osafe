@@ -4,7 +4,7 @@ import com.google.android.gms.tasks.Task
 
 interface StorageFormat {
     companion object {
-        const val FILENAME = "osafe.enc"
+        const val FILENAME = "osafe.json"
     }
 
     val stringId: Int

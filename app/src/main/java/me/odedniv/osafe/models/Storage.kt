@@ -5,6 +5,7 @@ import com.google.android.gms.auth.api.signin.GoogleSignInAccount
 import com.google.android.gms.tasks.Task
 import com.google.android.gms.tasks.Tasks
 import me.odedniv.osafe.extensions.toResult
+import me.odedniv.osafe.models.encryption.Message
 import me.odedniv.osafe.models.storage.DriveStorageFormat
 import me.odedniv.osafe.models.storage.FileStorageFormat
 import me.odedniv.osafe.models.storage.StorageFormat
@@ -54,7 +55,7 @@ class Storage(private val context: Context) {
                 }.toResult(Unit)
     }
 
-    fun get(receiver: (message: Encryption.Message?) -> Unit): Task<Unit> {
+    fun get(receiver: (message: Message?) -> Unit): Task<Unit> {
         // prefer the last storage format (in the list of storage formats)
         var lastStorageFormatIndex: Int = -1
         var lastContent: ByteArray? = null
@@ -70,7 +71,7 @@ class Storage(private val context: Context) {
                                     lastContent = content
                                 }
                                 if (lastStorageFormatIndex == index) {
-                                    receiver(Encryption.Message.decode(content))
+                                    receiver(Message.decode(content))
                                 }
                             }
                 }
@@ -84,7 +85,7 @@ class Storage(private val context: Context) {
         }.toResult(Unit)
     }
 
-    fun set(message: Encryption.Message): Task<Unit> {
+    fun set(message: Message): Task<Unit> {
         val content = message.encoded
         return Tasks.whenAll(storageFormats.map { it.write(content) }).toResult(Unit)
     }

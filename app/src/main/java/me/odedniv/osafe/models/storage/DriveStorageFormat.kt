@@ -111,6 +111,7 @@ class DriveStorageFormat(private val context: Context,
                             driveFolder!!,
                             MetadataChangeSet.Builder()
                                     .setTitle(StorageFormat.FILENAME)
+                                    .setMimeType("application/json")
                                     .build(),
                             driveContents
                     )
@@ -128,6 +129,7 @@ class DriveStorageFormat(private val context: Context,
                             driveContents,
                             MetadataChangeSet.Builder()
                                     .setTitle(StorageFormat.FILENAME)
+                                    .setMimeType("application/json")
                                     .build(),
                             ExecutionOptions.Builder()
                                     .setConflictStrategy(ExecutionOptions.CONFLICT_STRATEGY_OVERWRITE_REMOTE)

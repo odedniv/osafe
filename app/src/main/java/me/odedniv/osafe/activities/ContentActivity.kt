@@ -10,7 +10,6 @@ import android.os.Bundle
 import android.os.IBinder
 import android.text.Editable
 import android.text.TextWatcher
-import android.util.Log
 import android.view.View
 import android.view.WindowManager
 import android.widget.Toast
@@ -27,10 +26,10 @@ import me.odedniv.osafe.R
 import me.odedniv.osafe.extensions.logFailure
 import me.odedniv.osafe.models.Encryption
 import me.odedniv.osafe.models.Storage
+import me.odedniv.osafe.models.encryption.Message
 import me.odedniv.osafe.models.storage.StorageFormat
 import me.odedniv.osafe.services.EncryptionStorageService
 import java.util.*
-import javax.crypto.BadPaddingException
 
 class ContentActivity : BaseActivity() {
     companion object {
@@ -39,10 +38,12 @@ class ContentActivity : BaseActivity() {
     }
 
     private val storage = Storage(this)
-    private var googleSignInReceived = false
     private var started = false
+    private var googleSignInReceived = false
     private var encryption: Encryption? = null
     private var encryptionStorage : EncryptionStorageService.EncryptionStorageBinder? = null
+
+    private var originalMessage: Message? = null
     private var lastStored: String? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -222,6 +223,7 @@ class ContentActivity : BaseActivity() {
 
             encryption!!.decrypt(message)
                     .addOnSuccessListener { content ->
+                        originalMessage = message
                         lastStored = content
                         edit_content.setText(content)
                     }

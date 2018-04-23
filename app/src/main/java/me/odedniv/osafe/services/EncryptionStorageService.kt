@@ -23,7 +23,7 @@ class EncryptionStorageService : Service() {
                 stopSelf()
             }
         }
-        return START_NOT_STICKY
+        return super.onStartCommand(intent, flags, startId)
     }
 
     override fun onBind(intent: Intent): IBinder? {
