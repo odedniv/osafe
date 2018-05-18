@@ -1,6 +1,6 @@
 package me.odedniv.osafe.models.encryption
 
-import me.odedniv.osafe.models.Utils
+import me.odedniv.osafe.models.random
 import java.security.MessageDigest
 import javax.crypto.Cipher
 import javax.crypto.spec.IvParameterSpec
@@ -47,7 +47,7 @@ class Content(
 
         fun encrypt(key: ByteArray, content: ByteArray): Content {
             val cipher = Cipher.getInstance(DEFAULT_CIPHER_TYPE.transformation)
-            val iv = Utils.random(cipher.blockSize)
+            val iv = random(cipher.blockSize)
             cipher.init(
                     Cipher.ENCRYPT_MODE,
                     SecretKeySpec(key.copyOf(cipher.blockSize), DEFAULT_CIPHER_TYPE.algorithm),

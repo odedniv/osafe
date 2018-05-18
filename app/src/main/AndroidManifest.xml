@@ -25,6 +25,9 @@
         <activity
             android:name=".activities.ExistingPassphraseActivity"
             android:windowSoftInputMode="adjustResize" />
+        <activity
+            android:name=".dialogs.GeneratePassphraseDialog"
+            android:theme="@style/DialogTheme" />
 
         <service
             android:name=".services.EncryptionStorageService"

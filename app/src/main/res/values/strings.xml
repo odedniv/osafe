@@ -27,6 +27,18 @@
     <string name="encryption_timeout_1week">1 week</string>
     <string name="encryption_timeout_never">Never</string>
 
+    <!-- GeneratePassphraseDialog -->
+    <string-array name="passphrase_type">
+        <item>Words</item>
+        <item>Letters, digits, and symbols</item>
+        <item>Letters and digits</item>
+        <item>Letters</item>
+    </string-array>
+    <string name="passphrase_rule_three_symbol_types">3 symbol types</string>
+    <string name="passphrase_rule_not_consecutive">No consecutive symbols</string>
+    <string name="passphrase_regenerate">Regenerate</string>
+    <string name="passphrase_insert">Insert</string>
+
     <!-- Models -->
     <string name="storage_format_drive">Google Drive</string>
 </resources>

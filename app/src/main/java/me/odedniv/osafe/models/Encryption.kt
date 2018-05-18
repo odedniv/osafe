@@ -24,7 +24,7 @@ class Encryption private constructor(private val key: ByteArray) : Parcelable {
     fun encrypt(content: String): Task<Message> {
         return Tasks.call(AsyncTask.THREAD_POOL_EXECUTOR, Callable {
             if (baseKey == null) {
-                baseKey = Utils.random(64)
+                baseKey = random(64)
             }
             original = Message(
                     keys = original?.keys ?: Array(1, {
@@ -87,7 +87,7 @@ class Encryption private constructor(private val key: ByteArray) : Parcelable {
      */
 
     private constructor(parcel: Parcel) : this(
-            key = Utils.readParcelByteArray(parcel)
+            key = readParcelByteArray(parcel)
     )
 
     override fun writeToParcel(parcel: Parcel, flags: Int) {

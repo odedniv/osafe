@@ -8,6 +8,7 @@ import android.content.Intent
 import android.content.ServiceConnection
 import android.os.Bundle
 import android.os.IBinder
+import android.support.design.widget.FloatingActionButton
 import android.text.Editable
 import android.text.TextWatcher
 import android.view.View
@@ -23,6 +24,7 @@ import com.google.android.gms.tasks.TaskCompletionSource
 import com.google.android.gms.tasks.Tasks
 import kotlinx.android.synthetic.main.activity_content.*
 import me.odedniv.osafe.R
+import me.odedniv.osafe.dialogs.GeneratePassphraseDialog
 import me.odedniv.osafe.extensions.logFailure
 import me.odedniv.osafe.models.Encryption
 import me.odedniv.osafe.models.Storage
@@ -31,7 +33,7 @@ import me.odedniv.osafe.models.storage.StorageFormat
 import me.odedniv.osafe.services.EncryptionStorageService
 import java.util.*
 
-class ContentActivity : BaseActivity() {
+class ContentActivity : BaseActivity(), GeneratePassphraseDialog.Listener {
     companion object {
         private const val REQUEST_GOOGLE_SIGN_IN = 1
         private const val REQUEST_ENCRYPTION = 2
@@ -66,6 +68,9 @@ class ContentActivity : BaseActivity() {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) { }
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) { }
         })
+        (button_insert_passphrase as FloatingActionButton) .setOnClickListener {
+            GeneratePassphraseDialog().show(supportFragmentManager, "GeneratePassphraseDialog")
+        }
     }
 
     override fun onDestroy() {
@@ -125,6 +130,10 @@ class ContentActivity : BaseActivity() {
                 getEncryptionAndLoad()
             }
         }
+    }
+
+    override fun onInsertPassphrase(value: String) {
+        edit_content.text.replace(edit_content.selectionStart, edit_content.selectionEnd, value)
     }
 
     private fun getGoogleSignInAccount() {
