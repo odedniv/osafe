@@ -11,6 +11,7 @@
     <!-- NewPassphraseActivity -->
     <string name="new_passphrase">Enter your new passphrase&#8230;</string>
     <string name="new_passphrase_confirm">Enter the same passphrase again&#8230;</string>
+    <string name="new_passphrase_generate">Generate</string>
     <string name="new_passphrase_save">Save</string>
 
     <!-- ExistingPassphraseActivity -->
