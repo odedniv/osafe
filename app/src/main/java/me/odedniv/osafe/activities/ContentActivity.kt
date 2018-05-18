@@ -6,13 +6,17 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.ServiceConnection
+import android.os.Build
 import android.os.Bundle
 import android.os.IBinder
 import android.support.design.widget.FloatingActionButton
 import android.text.Editable
 import android.text.TextWatcher
+import android.text.method.ArrowKeyMovementMethod
 import android.view.View
 import android.view.WindowManager
+import android.view.inputmethod.InputMethodManager
+import android.widget.TextView
 import android.widget.Toast
 import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions
@@ -23,6 +27,7 @@ import com.google.android.gms.tasks.Task
 import com.google.android.gms.tasks.TaskCompletionSource
 import com.google.android.gms.tasks.Tasks
 import kotlinx.android.synthetic.main.activity_content.*
+import kotlinx.android.synthetic.main.activity_new_passphrase.*
 import me.odedniv.osafe.R
 import me.odedniv.osafe.dialogs.GeneratePassphraseDialog
 import me.odedniv.osafe.extensions.logFailure
@@ -45,6 +50,7 @@ class ContentActivity : BaseActivity(), GeneratePassphraseDialog.Listener {
     private var encryption: Encryption? = null
     private var encryptionStorage : EncryptionStorageService.EncryptionStorageBinder? = null
 
+    private var contentEditable = true
     private var originalMessage: Message? = null
     private var lastStored: String? = null
 
@@ -68,9 +74,53 @@ class ContentActivity : BaseActivity(), GeneratePassphraseDialog.Listener {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) { }
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) { }
         })
-        (button_insert_passphrase as FloatingActionButton) .setOnClickListener {
+        (button_insert_passphrase as FloatingActionButton).setOnClickListener {
             GeneratePassphraseDialog().show(supportFragmentManager, "GeneratePassphraseDialog")
         }
+        (button_toggle_input as FloatingActionButton).setOnClickListener {
+            toggleContentEditable()
+        }
+
+        toggleContentEditable()
+    }
+
+    private fun toggleContentEditable() {
+        contentEditable = !contentEditable
+        // enabling/disabling input on touch
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) { // API 21
+            edit_content.showSoftInputOnFocus = contentEditable
+        } else { // API 11-20
+            if (!contentEditable) {
+                edit_content.setTextIsSelectable(true)
+            } else {
+                val selectionStart = edit_content.selectionStart
+                val selectionEnd = edit_content.selectionEnd
+                edit_content.setTextIsSelectable(false)
+                edit_content.isFocusable = true
+                edit_content.isFocusableInTouchMode = true
+                edit_content.isClickable = true
+                edit_content.isLongClickable = true
+                edit_content.movementMethod = ArrowKeyMovementMethod.getInstance()
+                edit_content.setText(edit_content.text, TextView.BufferType.SPANNABLE)
+                edit_content.setSelection(selectionStart, selectionEnd)
+            }
+        }
+        // showing/hiding input now
+        val imm = getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager
+        if (contentEditable) {
+            if (edit_content.requestFocus()) {
+                imm.showSoftInput(edit_content, InputMethodManager.SHOW_FORCED)
+            }
+        } else {
+            imm.hideSoftInputFromWindow(edit_content.windowToken, 0)
+        }
+        // setting button icon
+        button_toggle_input.setImageResource(
+                if (!contentEditable)
+                    R.drawable.ic_keyboard_white_24dp
+                else
+                    R.drawable.ic_keyboard_hide_white_24dp
+        )
     }
 
     override fun onDestroy() {
