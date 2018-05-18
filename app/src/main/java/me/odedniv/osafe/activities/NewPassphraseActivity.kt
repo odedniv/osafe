@@ -10,6 +10,9 @@ import me.odedniv.osafe.models.Encryption
 import me.odedniv.osafe.R
 import me.odedniv.osafe.dialogs.GeneratePassphraseDialog
 import android.view.inputmethod.InputMethodManager
+import com.google.android.gms.tasks.Tasks
+import me.odedniv.osafe.models.Storage
+import me.odedniv.osafe.models.encryption.Message
 
 class NewPassphraseActivity : BaseActivity(), GeneratePassphraseDialog.Listener {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -54,14 +57,42 @@ class NewPassphraseActivity : BaseActivity(), GeneratePassphraseDialog.Listener 
     }
 
     private fun save() {
+        button_save.isEnabled = false
+        val passphrase = edit_passphrase.text.toString()
+        val encryption = intent.getParcelableExtra<Encryption>(EXTRA_ENCRYPTION)
+        encryption ?: return newEncryption(passphrase)
+
+        // changing key on for existing encryption
+        val storage = Storage(this)
+        storage.state = intent.getParcelableExtra(EXTRA_STORAGE)
+        storage.get()
+                .onSuccessTask { oldMessage ->
+                    oldMessage ?: return@onSuccessTask Tasks.forCanceled<Message>()
+                    encryption.changeKey(oldMessage, passphrase)
+                }.onSuccessTask { newMessage ->
+                    newMessage ?: return@onSuccessTask Tasks.forCanceled<Unit>()
+                    storage.set(newMessage)
+                }
+                .addOnCanceledListener { newEncryption(passphrase) } // no content to re-encrypt
+                .addOnSuccessListener {
+                    setResult(
+                            Activity.RESULT_OK,
+                            Intent().putExtra(EXTRA_ENCRYPTION, encryption)
+                    )
+                    finish()
+                }
+                .addOnFailureListener {
+                    // TODO: handle nicely, the encryption was changed while in here
+                    setResult(Activity.RESULT_CANCELED)
+                    finish()
+                }
+    }
+
+    private fun newEncryption(passphrase: String) {
         setResult(
                 Activity.RESULT_OK,
-                Intent()
-                        .putExtra(EXTRA_ENCRYPTION, encryption)
+                Intent().putExtra(EXTRA_ENCRYPTION, Encryption(passphrase = passphrase))
         )
         finish()
     }
-
-    private val encryption: Encryption
-        get() = Encryption(passphrase = edit_passphrase.text.toString())
 }

@@ -17,9 +17,6 @@ class DriveStorageFormat(private val context: Context,
     private val client = Drive.getDriveClient(context, googleSignInAccount)
     private val resourceClient = Drive.getDriveResourceClient(context, googleSignInAccount)
 
-    private var _read = false
-    private var _content: ByteArray? = null
-
     override val stringId: Int
         get() = R.string.storage_format_drive
 
@@ -42,8 +39,6 @@ class DriveStorageFormat(private val context: Context,
 
     override fun read(): Task<ByteArray?> {
         if (context.preferences.getBoolean(PREF_DRIVE_NEEDS_UPDATE, false)) return Tasks.forResult(null)
-        if (_read) return Tasks.forResult(_content)
-
         return query
                 .onSuccessTask<ByteArray?> { driveFileMetadata ->
                     driveFileMetadata ?: return@onSuccessTask Tasks.forResult(null)
@@ -51,10 +46,8 @@ class DriveStorageFormat(private val context: Context,
                             .openFile(driveFileMetadata.driveFile, DriveFile.MODE_READ_ONLY)
                             .onSuccessTask {
                                 it?.inputStream.use {
-                                    _content = it?.readBytes()
+                                    Tasks.forResult(it?.readBytes())
                                 }
-                                _read = true
-                                Tasks.forResult(_content)
                             }
                 }
     }
@@ -65,8 +58,6 @@ class DriveStorageFormat(private val context: Context,
                 .putBoolean(PREF_DRIVE_NEEDS_UPDATE, true)
                 .apply()
 
-        _content = content
-        _read = true
         _queried = false
         _driveFileMetadata = null
 
@@ -139,8 +130,6 @@ class DriveStorageFormat(private val context: Context,
     }
 
     override fun clear(): Task<Unit> {
-        _content = null
-        _read = true
         _driveFileMetadata = null
         _queried = true
 

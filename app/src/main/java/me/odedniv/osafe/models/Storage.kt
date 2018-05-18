@@ -1,7 +1,10 @@
 package me.odedniv.osafe.models
 
 import android.content.Context
+import android.os.Parcel
+import android.os.Parcelable
 import com.google.android.gms.auth.api.signin.GoogleSignInAccount
+import com.google.android.gms.common.internal.ReflectedParcelable
 import com.google.android.gms.tasks.Task
 import com.google.android.gms.tasks.Tasks
 import me.odedniv.osafe.extensions.toResult
@@ -11,6 +14,41 @@ import me.odedniv.osafe.models.storage.FileStorageFormat
 import me.odedniv.osafe.models.storage.StorageFormat
 
 class Storage(private val context: Context) {
+
+    class State constructor() : Parcelable {
+        var googleSignInAccount: GoogleSignInAccount? = null
+
+        private constructor(parcel: Parcel) : this() {
+            googleSignInAccount = parcel.readParcelable(GoogleSignInAccount::class.java.classLoader)
+        }
+
+        override fun writeToParcel(parcel: Parcel, flags: Int) {
+            parcel.writeParcelable(googleSignInAccount, 0)
+        }
+
+        override fun describeContents(): Int {
+            return 0
+        }
+
+        companion object CREATOR : Parcelable.Creator<State> {
+            override fun createFromParcel(parcel: Parcel): State {
+                return State(parcel)
+            }
+
+            override fun newArray(size: Int): Array<State?> {
+                return arrayOfNulls(size)
+            }
+        }
+    }
+
+    private var _state: State = State()
+    var state: State
+        get() = _state
+        set(value) {
+            _state = value
+            setGoogleSignInAccount(_state.googleSignInAccount)
+        }
+
     private val storageFormats = ArrayList<StorageFormat>()
 
     init {
@@ -18,6 +56,7 @@ class Storage(private val context: Context) {
     }
 
     fun setGoogleSignInAccount(googleSignInAccount: GoogleSignInAccount?) {
+        state.googleSignInAccount = googleSignInAccount
         storageFormats.removeAll { it is DriveStorageFormat }
         if (googleSignInAccount != null) {
             storageFormats.add(DriveStorageFormat(context, googleSignInAccount))
@@ -55,10 +94,13 @@ class Storage(private val context: Context) {
                 }.toResult(Unit)
     }
 
-    fun get(receiver: (message: Message?) -> Unit): Task<Unit> {
+    fun get() = get({ })
+
+    fun get(receiver: (message: Message?) -> Unit): Task<Message?> {
         // prefer the last storage format (in the list of storage formats)
         var lastStorageFormatIndex: Int = -1
         var lastContent: ByteArray? = null
+        var lastMessage: Message? = null
         val allContents = HashMap<StorageFormat, ByteArray>()
         return Tasks.whenAll(
                 storageFormats.mapIndexed { index, storageFormat ->
@@ -71,18 +113,19 @@ class Storage(private val context: Context) {
                                     lastContent = content
                                 }
                                 if (lastStorageFormatIndex == index) {
-                                    receiver(Message.decode(content))
+                                    lastMessage = Message.decode(content)
+                                    receiver(lastMessage)
                                 }
                             }
                 }
         ).onSuccessTask {
-            if (lastContent == null) return@onSuccessTask Tasks.forResult(Unit)
+            if (lastContent == null) return@onSuccessTask Tasks.forResult(lastMessage)
             Tasks.whenAll(
                     storageFormats
                             .filter { !allContents.containsKey(it) || !lastContent!!.contentEquals(allContents[it]!!) }
                             .map { storageFormat -> storageFormat.write(lastContent!!) }
-            ).toResult(Unit)
-        }.toResult(Unit)
+            ).toResult(lastMessage)
+        }
     }
 
     fun set(message: Message): Task<Unit> {
