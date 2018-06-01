@@ -5,6 +5,7 @@ import android.content.Intent
 import android.os.Bundle
 import android.text.Editable
 import android.text.TextWatcher
+import android.view.inputmethod.EditorInfo
 import kotlinx.android.synthetic.main.activity_new_passphrase.*
 import me.odedniv.osafe.models.Encryption
 import me.odedniv.osafe.R
@@ -28,6 +29,14 @@ class NewPassphraseActivity : BaseActivity(), GeneratePassphraseDialog.Listener 
         }
         edit_passphrase.addTextChangedListener(textWatcher)
         edit_passphrase_confirm.addTextChangedListener(textWatcher)
+        edit_passphrase_confirm.setOnEditorActionListener { _, actionId, _ ->
+            if (actionId == EditorInfo.IME_ACTION_DONE) {
+                button_save.performClick()
+                true
+            } else {
+                false
+            }
+        }
         button_generate.setOnClickListener { generate() }
         button_save.setOnClickListener { save() }
     }

@@ -17,6 +17,7 @@
         android:ems="10"
         android:hint="@string/new_passphrase"
         android:inputType="textPassword"
+        android:imeOptions="actionNext"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
@@ -32,6 +33,7 @@
         android:ems="10"
         android:hint="@string/new_passphrase_confirm"
         android:inputType="textPassword"
+        android:imeOptions="actionDone"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/edit_passphrase" />
