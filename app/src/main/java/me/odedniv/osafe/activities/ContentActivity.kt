@@ -196,9 +196,9 @@ class ContentActivity : BaseActivity(), GeneratePassphraseDialog.Listener {
         // setting button icon
         button_toggle_input.setImageResource(
                 if (!contentEditable)
-                    R.drawable.ic_keyboard_white_24dp
+                    R.drawable.ic_keyboard_show
                 else
-                    R.drawable.ic_keyboard_hide_white_24dp
+                    R.drawable.ic_keyboard_hide
         )
     }
 
