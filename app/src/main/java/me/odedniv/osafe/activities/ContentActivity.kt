@@ -6,20 +6,20 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.ServiceConnection
+import android.graphics.Color
 import android.os.Build
 import android.os.Bundle
 import android.os.IBinder
 import android.support.design.widget.FloatingActionButton
 import android.text.Editable
+import android.text.Spanned
 import android.text.TextWatcher
 import android.text.method.ArrowKeyMovementMethod
-import android.view.Menu
-import android.view.MenuItem
-import android.view.View
-import android.view.WindowManager
+import android.text.style.BackgroundColorSpan
+import android.view.*
+import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
-import android.widget.TextView
-import android.widget.Toast
+import android.widget.*
 import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions
 import com.google.android.gms.common.ConnectionResult
@@ -38,11 +38,14 @@ import me.odedniv.osafe.models.encryption.Message
 import me.odedniv.osafe.models.storage.StorageFormat
 import me.odedniv.osafe.services.EncryptionStorageService
 import java.util.*
+import java.util.regex.Pattern
 
 class ContentActivity : BaseActivity(), GeneratePassphraseDialog.Listener {
     companion object {
         private const val REQUEST_GOOGLE_SIGN_IN = 1
         private const val REQUEST_ENCRYPTION = 2
+
+        private val WORD_SEPARATOR_PATTERN = Pattern.compile("\\W")
     }
 
     private val storage = Storage(this)
@@ -50,7 +53,10 @@ class ContentActivity : BaseActivity(), GeneratePassphraseDialog.Listener {
     private var googleSignInReceived = false
     private var encryption: Encryption? = null
     private var encryptionStorage : EncryptionStorageService.EncryptionStorageBinder? = null
+    var imm: InputMethodManager? = null
 
+    private var wordsUpdated = true
+    private var searchHasFocus = false
     private var contentEditable = true
     private var originalMessage: Message? = null
     private var lastStored: String? = null
@@ -61,6 +67,7 @@ class ContentActivity : BaseActivity(), GeneratePassphraseDialog.Listener {
         setContentView(R.layout.activity_content)
         setSupportActionBar(toolbar_content)
 
+        imm = getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager
         startService(encryptionStorageIntent)
         bindService(
                 encryptionStorageIntent,
@@ -71,10 +78,40 @@ class ContentActivity : BaseActivity(), GeneratePassphraseDialog.Listener {
         edit_content.addTextChangedListener(object : TextWatcher {
             override fun afterTextChanged(s: Editable?) {
                 dumpLater()
+                wordsUpdated = true
+                setSearchAutoCompleteAdapter()
             }
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) { }
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) { }
         })
+        edit_content.setOnFocusChangeListener { _, hasFocus ->
+            // hiding keyboard if it's shown
+            if (hasFocus) imm!!.hideSoftInputFromWindow(edit_content.windowToken, 0)
+        }
+        autocomplete_search.setOnFocusChangeListener { _, hasFocus ->
+            searchHasFocus = hasFocus
+            setSearchAutoCompleteAdapter()
+        }
+        autocomplete_search.addTextChangedListener(object : TextWatcher {
+            override fun afterTextChanged(s: Editable?) {
+                findNext()
+            }
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) { }
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) { }
+        })
+        autocomplete_search.setOnEditorActionListener { _, actionId, _ ->
+            if (actionId == EditorInfo.IME_ACTION_SEARCH) {
+                autocomplete_search.dismissDropDown()
+                imm!!.hideSoftInputFromWindow(autocomplete_search.windowToken, 0)
+                findNext()
+                true
+            } else {
+                false
+            }
+        }
+        autocomplete_search.setOnItemClickListener { _, _, _, _ ->
+            imm!!.hideSoftInputFromWindow(autocomplete_search.windowToken, 0)
+        }
         (button_insert_passphrase as FloatingActionButton).setOnClickListener {
             GeneratePassphraseDialog().show(supportFragmentManager, "GeneratePassphraseDialog")
         }
@@ -163,6 +200,45 @@ class ContentActivity : BaseActivity(), GeneratePassphraseDialog.Listener {
         }
     }
 
+    private fun setSearchAutoCompleteAdapter() {
+        if (!searchHasFocus || !wordsUpdated) return
+        autocomplete_search.setAdapter(ArrayAdapter<String>(
+                this,
+                android.R.layout.simple_dropdown_item_1line,
+                edit_content.text.split(WORD_SEPARATOR_PATTERN)
+        ))
+        wordsUpdated = false
+    }
+
+    private fun findNext() {
+        edit_content.text.getSpans(0, edit_content.text.length, BackgroundColorSpan::class.java).forEach {
+            edit_content.text.removeSpan(it)
+        }
+
+        var first = true
+        if (!autocomplete_search.text.isBlank()) {
+            val start = edit_content.selectionEnd
+            var next = start
+            var looped = false
+            while (!looped || next < start) {
+                val index = edit_content.text.indexOf(autocomplete_search.text.toString(), next, true)
+                if (index != -1) {
+                    if (first) {
+                        edit_content.setSelection(index + autocomplete_search.text.length)
+                        first = false
+                    }
+                    edit_content.text.setSpan(BackgroundColorSpan(Color.YELLOW), index, index + autocomplete_search.text.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                    next = index + autocomplete_search.text.length
+                } else if (!looped) {
+                    looped = true
+                    next = 0
+                } else {
+                    break
+                }
+            }
+        }
+    }
+
     private fun toggleContentEditable() {
         contentEditable = !contentEditable
         // enabling/disabling input on touch
@@ -185,13 +261,12 @@ class ContentActivity : BaseActivity(), GeneratePassphraseDialog.Listener {
             }
         }
         // showing/hiding input now
-        val imm = getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager
         if (contentEditable) {
             if (edit_content.requestFocus()) {
-                imm.showSoftInput(edit_content, InputMethodManager.SHOW_FORCED)
+                imm!!.showSoftInput(edit_content, InputMethodManager.SHOW_FORCED)
             }
         } else {
-            imm.hideSoftInputFromWindow(edit_content.windowToken, 0)
+            imm!!.hideSoftInputFromWindow(edit_content.windowToken, 0)
         }
         // setting button icon
         button_toggle_input.setImageResource(
@@ -305,6 +380,7 @@ class ContentActivity : BaseActivity(), GeneratePassphraseDialog.Listener {
                         originalMessage = message
                         lastStored = content
                         edit_content.setText(content)
+                        edit_content.isEnabled = true
                     }
                     .addOnFailureListener {
                         encryption = null
@@ -313,7 +389,6 @@ class ContentActivity : BaseActivity(), GeneratePassphraseDialog.Listener {
                         getEncryptionAndLoad()
                     }
         }.addOnSuccessListener {
-            edit_content.isEnabled = true
             progress_spinner.visibility = View.GONE
         }.logFailure("Load", "Failed loading")
     }

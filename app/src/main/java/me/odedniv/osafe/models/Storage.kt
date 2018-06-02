@@ -5,6 +5,7 @@ import android.os.Parcel
 import android.os.Parcelable
 import com.google.android.gms.auth.api.signin.GoogleSignInAccount
 import com.google.android.gms.tasks.Task
+import com.google.android.gms.tasks.TaskCompletionSource
 import com.google.android.gms.tasks.Tasks
 import me.odedniv.osafe.extensions.toResult
 import me.odedniv.osafe.models.encryption.Message
@@ -64,11 +65,21 @@ class Storage(private val context: Context) {
 
     val exists: Task<Boolean>
         get() {
-            val tasks = storageFormats.map { it.exists() }
-            return Tasks.whenAll(tasks)
-                    .onSuccessTask {
-                        Tasks.forResult(tasks.any { it.result })
-                    }
+            val taskCompletionSource = TaskCompletionSource<Boolean>()
+
+            Tasks.whenAll(storageFormats.map { storageFormat ->
+                storageFormat.exists().addOnSuccessListener { exists ->
+                    // sets first true
+                    if (exists) taskCompletionSource.trySetResult(true)
+                }
+            }).addOnSuccessListener {
+                // sets false if finished and no true
+                taskCompletionSource.trySetResult(false)
+            }.addOnFailureListener {
+                taskCompletionSource.trySetException(it)
+            }
+
+            return taskCompletionSource.task
         }
 
     val conflicts: Task<List<StorageFormat>>

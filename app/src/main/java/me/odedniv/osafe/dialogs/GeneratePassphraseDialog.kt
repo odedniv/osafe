@@ -43,7 +43,7 @@ class GeneratePassphraseDialog : AppCompatDialogFragment() {
     private var buttonRegeneratePassphrase: Button? = null
 
     override fun onCreateDialog(savedInstanceState: Bundle?): Dialog {
-        val layout = activity.layoutInflater.inflate(R.layout.dialog_generate_passphrase, null)
+        val layout = activity!!.layoutInflater.inflate(R.layout.dialog_generate_passphrase, null)
         spinnerPassphraseType = layout.findViewById(R.id.spinner_passphrase_type)
         seekPassphraseLength = layout.findViewById(R.id.seek_passphrase_length)
         textPassphraseLength = layout.findViewById(R.id.text_passphrase_length)
@@ -79,13 +79,13 @@ class GeneratePassphraseDialog : AppCompatDialogFragment() {
     }
 
     private fun setDefaults() {
-        checkPassphraseRuleThreeSymbolTypes!!.isChecked = context.preferences.getBoolean(PREF_GENERATE_RULE_THREE_SYMBOL_TYPES, false)
-        checkPassphraseRuleNotConsecutive!!.isChecked = context.preferences.getBoolean(PREF_GENERATE_RULE_NOT_CONSECUTIVE, false)
+        checkPassphraseRuleThreeSymbolTypes!!.isChecked = context!!.preferences.getBoolean(PREF_GENERATE_RULE_THREE_SYMBOL_TYPES, false)
+        checkPassphraseRuleNotConsecutive!!.isChecked = context!!.preferences.getBoolean(PREF_GENERATE_RULE_NOT_CONSECUTIVE, false)
         try {
             spinnerPassphraseType!!.setSelection(
                     PASSPHRASE_TYPES.indexOf(
                             PassphraseType.valueOf(
-                                    context.preferences.getString(
+                                    context!!.preferences.getString(
                                             PREF_GENERATE_TYPE,
                                             PASSPHRASE_TYPES[spinnerPassphraseType!!.selectedItemPosition].toString()
                                     )
@@ -98,7 +98,7 @@ class GeneratePassphraseDialog : AppCompatDialogFragment() {
             return
         }
         setPassphraseLengthDefaults()
-        seekPassphraseLength!!.progress = context.preferences.getInt(PREF_GENERATE_LENGTH, seekPassphraseLength!!.progress + 1) - 1
+        seekPassphraseLength!!.progress = context!!.preferences.getInt(PREF_GENERATE_LENGTH, seekPassphraseLength!!.progress + 1) - 1
         textPassphraseLength!!.text = (seekPassphraseLength!!.progress + 1).toString()
     }
 
@@ -121,7 +121,7 @@ class GeneratePassphraseDialog : AppCompatDialogFragment() {
                     first = false
                     return
                 }
-                context.preferences.edit()
+                context!!.preferences.edit()
                         .putString(PREF_GENERATE_TYPE, PASSPHRASE_TYPES[spinnerPassphraseType!!.selectedItemPosition].toString())
                         .apply()
                 setPassphraseLengthDefaults()
@@ -131,7 +131,7 @@ class GeneratePassphraseDialog : AppCompatDialogFragment() {
         }
         seekPassphraseLength!!.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
-                context.preferences.edit()
+                context!!.preferences.edit()
                         .putInt(PREF_GENERATE_LENGTH, progress + 1)
                         .apply()
                 textPassphraseLength!!.text = (progress + 1).toString()
@@ -141,13 +141,13 @@ class GeneratePassphraseDialog : AppCompatDialogFragment() {
             override fun onStopTrackingTouch(seekBar: SeekBar?) { }
         })
         checkPassphraseRuleThreeSymbolTypes!!.setOnCheckedChangeListener { _, isChecked ->
-            context.preferences.edit()
+            context!!.preferences.edit()
                     .putBoolean(PREF_GENERATE_RULE_THREE_SYMBOL_TYPES, isChecked)
                     .apply()
             regeneratePassphrase()
         }
         checkPassphraseRuleNotConsecutive!!.setOnCheckedChangeListener { _, isChecked ->
-            context.preferences.edit()
+            context!!.preferences.edit()
                     .putBoolean(PREF_GENERATE_RULE_NOT_CONSECUTIVE, isChecked)
                     .apply()
             regeneratePassphrase()
