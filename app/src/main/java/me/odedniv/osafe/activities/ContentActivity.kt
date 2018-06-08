@@ -182,7 +182,7 @@ class ContentActivity : BaseActivity(), GeneratePassphraseDialog.Listener {
                             googleSignInReceived = true
                             getEncryptionAndLoad()
                         }
-                        .logFailure("GoogleSignIn", "Failed getting Google account")
+                        .logFailure(this, "GoogleSignIn", "Failed getting Google account")
             }
             REQUEST_ENCRYPTION -> {
                 if (resultCode != Activity.RESULT_OK) {
@@ -322,9 +322,9 @@ class ContentActivity : BaseActivity(), GeneratePassphraseDialog.Listener {
                             Intent(this@ContentActivity, activity),
                             REQUEST_ENCRYPTION
                     )
-                }.logFailure("Load", "Failed checking existing")
+                }.logFailure(this, "Load", "Failed checking existing")
             }
-        }.logFailure("Load", "Failed resolving conflicts")
+        }.logFailure(this, "Load", "Failed resolving conflicts")
     }
 
     private var dumpLaterTimer: Timer? = null
@@ -367,7 +367,7 @@ class ContentActivity : BaseActivity(), GeneratePassphraseDialog.Listener {
         return encryption!!.encrypt(content)
                 .onSuccessTask { message ->
                     storage.set(message!!)
-                }.logFailure("Dump", "Failed encrypting")
+                }.logFailure(this, "Dump", "Failed encrypting")
     }
 
     private fun load() {
@@ -390,7 +390,7 @@ class ContentActivity : BaseActivity(), GeneratePassphraseDialog.Listener {
                     }
         }.addOnSuccessListener {
             progress_spinner.visibility = View.GONE
-        }.logFailure("Load", "Failed loading")
+        }.logFailure(this, "Load", "Failed loading")
     }
 
     private fun resolveConflicts(): Task<Unit> {

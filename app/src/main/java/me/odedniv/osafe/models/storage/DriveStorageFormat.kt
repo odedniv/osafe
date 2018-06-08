@@ -21,7 +21,9 @@ class DriveStorageFormat(private val context: Context,
         get() = R.string.storage_format_drive
 
     override fun exists(): Task<Boolean> {
-        return query.onSuccessTask { Tasks.forResult(it != null) }
+        return query.onSuccessTask {
+            Tasks.forResult(it != null)
+        }
     }
 
     override fun conflicts(): Task<Boolean> {
