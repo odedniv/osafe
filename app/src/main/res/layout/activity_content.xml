@@ -39,30 +39,40 @@
         android:completionThreshold="1"
         android:inputType="textFilter"
         android:imeOptions="actionSearch"
+        android:saveEnabled="false"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/toolbar_content" />
 
-    <EditText
-        android:id="@+id/edit_content"
+
+    <ScrollView
         android:layout_width="0dp"
         android:layout_height="0dp"
-        android:layout_marginLeft="8dp"
-        android:layout_marginStart="8dp"
-        android:layout_marginRight="8dp"
-        android:layout_marginEnd="8dp"
         android:layout_marginBottom="8dp"
-        android:background="@android:color/transparent"
-        android:ems="10"
-        android:enabled="false"
-        android:gravity="top"
-        android:hint="@string/content_hint"
-        android:inputType="textMultiLine"
-        android:saveEnabled="false"
+        android:layout_marginEnd="8dp"
+        android:layout_marginLeft="8dp"
+        android:layout_marginRight="8dp"
+        android:layout_marginStart="8dp"
+        android:fillViewport="true"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/autocomplete_search" />
+        app:layout_constraintTop_toBottomOf="@+id/autocomplete_search">
+
+        <EditText
+            android:id="@+id/edit_content"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="@android:color/transparent"
+            android:gravity="top"
+            android:ems="10"
+            android:enabled="false"
+            android:hint="@string/content_hint"
+            android:inputType="textMultiLine"
+            android:saveEnabled="false" />
+    </ScrollView>
+
+
 
     <android.support.design.widget.FloatingActionButton
         android:id="@+id/button_toggle_input"

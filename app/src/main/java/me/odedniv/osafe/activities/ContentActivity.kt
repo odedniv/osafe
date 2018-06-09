@@ -50,6 +50,7 @@ class ContentActivity : BaseActivity(), GeneratePassphraseDialog.Listener {
 
     private val storage = Storage(this)
     private var started = false
+    private var resumed = false
     private var googleSignInReceived = false
     private var encryption: Encryption? = null
     private var encryptionStorage : EncryptionStorageService.EncryptionStorageBinder? = null
@@ -77,6 +78,7 @@ class ContentActivity : BaseActivity(), GeneratePassphraseDialog.Listener {
 
         edit_content.addTextChangedListener(object : TextWatcher {
             override fun afterTextChanged(s: Editable?) {
+                if (!resumed) return
                 dumpLater()
                 wordsUpdated = true
                 setSearchAutoCompleteAdapter()
@@ -86,7 +88,7 @@ class ContentActivity : BaseActivity(), GeneratePassphraseDialog.Listener {
         })
         edit_content.setOnFocusChangeListener { _, hasFocus ->
             // hiding keyboard if it's shown
-            if (hasFocus) imm!!.hideSoftInputFromWindow(edit_content.windowToken, 0)
+            if (hasFocus && !contentEditable) imm!!.hideSoftInputFromWindow(edit_content.windowToken, 0)
         }
         autocomplete_search.setOnFocusChangeListener { _, hasFocus ->
             searchHasFocus = hasFocus
@@ -116,10 +118,9 @@ class ContentActivity : BaseActivity(), GeneratePassphraseDialog.Listener {
             GeneratePassphraseDialog().show(supportFragmentManager, "GeneratePassphraseDialog")
         }
         (button_toggle_input as FloatingActionButton).setOnClickListener {
-            toggleContentEditable()
+            setContentEditable(!contentEditable)
         }
-
-        toggleContentEditable()
+        setContentEditable(false)
     }
 
     override fun onCreateOptionsMenu(menu: Menu?): Boolean {
@@ -159,8 +160,19 @@ class ContentActivity : BaseActivity(), GeneratePassphraseDialog.Listener {
         super.onStop()
     }
 
+    override fun onResume() {
+        super.onResume()
+        resumed = true
+    }
+
     override fun onPause() {
+        resumed = false
         dump()
+        // reset instance state
+        edit_content.text.clear()
+        autocomplete_search.text.clear()
+        setContentEditable(false)
+        currentFocus?.clearFocus()
         super.onPause()
     }
 
@@ -239,13 +251,13 @@ class ContentActivity : BaseActivity(), GeneratePassphraseDialog.Listener {
         }
     }
 
-    private fun toggleContentEditable() {
-        contentEditable = !contentEditable
+    private fun setContentEditable(value: Boolean) {
+        contentEditable = value
         // enabling/disabling input on touch
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) { // API 21
-            edit_content.showSoftInputOnFocus = contentEditable
+            edit_content.showSoftInputOnFocus = value
         } else { // API 11-20
-            if (!contentEditable) {
+            if (!value) {
                 edit_content.setTextIsSelectable(true)
             } else {
                 val selectionStart = edit_content.selectionStart
@@ -261,16 +273,16 @@ class ContentActivity : BaseActivity(), GeneratePassphraseDialog.Listener {
             }
         }
         // showing/hiding input now
-        if (contentEditable) {
+        if (value) {
             if (edit_content.requestFocus()) {
-                imm!!.showSoftInput(edit_content, InputMethodManager.SHOW_FORCED)
+                imm!!.showSoftInput(edit_content, 0)
             }
         } else {
             imm!!.hideSoftInputFromWindow(edit_content.windowToken, 0)
         }
         // setting button icon
         button_toggle_input.setImageResource(
-                if (!contentEditable)
+                if (!value)
                     R.drawable.ic_keyboard_show
                 else
                     R.drawable.ic_keyboard_hide
