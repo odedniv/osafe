@@ -9,8 +9,8 @@ android {
         applicationId "me.odedniv.osafe"
         minSdkVersion 15
         targetSdkVersion 26 // 27 has a problem with GoogleSignIn (resultCode is RESULT_CANCELED)
-        versionCode 4
-        versionName "0.2.2"
+        versionCode 5
+        versionName "0.2.3"
         testInstrumentationRunner "android.support.test.runner.AndroidJUnitRunner"
     }
     buildTypes {

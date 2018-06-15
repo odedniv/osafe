@@ -54,7 +54,7 @@ class ContentActivity : BaseActivity(), GeneratePassphraseDialog.Listener {
     private var googleSignInReceived = false
     private var encryption: Encryption? = null
     private var encryptionStorage : EncryptionStorageService.EncryptionStorageBinder? = null
-    var imm: InputMethodManager? = null
+    private var imm: InputMethodManager? = null
 
     private var wordsUpdated = true
     private var searchHasFocus = false
@@ -181,20 +181,16 @@ class ContentActivity : BaseActivity(), GeneratePassphraseDialog.Listener {
 
         when (requestCode) {
             REQUEST_GOOGLE_SIGN_IN -> {
-                if (resultCode != RESULT_OK) {
-                    googleSignInReceived = true
-                    getEncryptionAndLoad()
-                    return
-                }
                 GoogleSignIn.getSignedInAccountFromIntent(data)
                         .addOnSuccessListener {
                             storage.setGoogleSignInAccount(it)
-                        }
-                        .addOnCompleteListener {
                             googleSignInReceived = true
                             getEncryptionAndLoad()
                         }
                         .logFailure(this, "GoogleSignIn", "Failed getting Google account")
+                        .addOnFailureListener {
+                            finish()
+                        }
             }
             REQUEST_ENCRYPTION -> {
                 if (resultCode != Activity.RESULT_OK) {
@@ -299,7 +295,7 @@ class ContentActivity : BaseActivity(), GeneratePassphraseDialog.Listener {
             return
         }
         val googleSignInAccount = GoogleSignIn.getLastSignedInAccount(this)
-        if (googleSignInAccount != null) {
+        if (googleSignInAccount != null && googleSignInAccount.grantedScopes.contains(Drive.SCOPE_FILE)) {
             storage.setGoogleSignInAccount(googleSignInAccount)
             googleSignInReceived = true
             return
