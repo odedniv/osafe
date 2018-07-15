@@ -139,7 +139,7 @@ class Storage(private val context: Context) {
     }
 
     fun set(message: Message): Task<Unit> {
-        val content = message.encoded
+        val content = message.encode()
         return Tasks.whenAll(storageFormats.map { it.write(content) }).toResult(Unit)
     }
 

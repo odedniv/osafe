@@ -1,28 +1,30 @@
 package me.odedniv.osafe.models.encryption
 
 import android.util.Base64
-import com.squareup.moshi.*
+import com.google.gson.*
+import java.lang.reflect.Type
 
 class Message(val keys: Array<Key>, val content: Content) {
     companion object {
-        val ADAPTER = Moshi.Builder()
-                .add(KotlinJsonAdapterFactory())
-                .add(object {
-                    @FromJson fun fromJson(base64: String): ByteArray? {
-                        return Base64.decode(base64, Base64.NO_WRAP)
+        val GSON = GsonBuilder()
+                .registerTypeAdapter(ByteArray::class.java, object : JsonSerializer<ByteArray>, JsonDeserializer<ByteArray> {
+                    override fun serialize(src: ByteArray?, typeOfSrc: Type?, context: JsonSerializationContext?): JsonElement {
+                        return JsonPrimitive(Base64.encodeToString(src!!, Base64.NO_WRAP))
                     }
 
-                    @ToJson fun toJson(value: ByteArray?): String? {
-                        return Base64.encodeToString(value, Base64.NO_WRAP)
+                    override fun deserialize(json: JsonElement?, typeOfT: Type?, context: JsonDeserializationContext?): ByteArray {
+                        return Base64.decode(json!!.asString, Base64.NO_WRAP)
                     }
+
                 })
-                .build()
-                .adapter(Message::class.java)!!
+                .create()
 
         fun decode(encoded: ByteArray): Message {
-            return ADAPTER.fromJson(encoded.toString(Charsets.UTF_8))!!
+            return GSON.fromJson(encoded.toString(Charsets.UTF_8), Message::class.java)
         }
     }
 
-    val encoded by lazy { ADAPTER.toJson(this)!!.toByteArray(Charsets.UTF_8) }
+    fun encode(): ByteArray {
+        return GSON.toJson(this).toByteArray(Charsets.UTF_8)
+    }
 }
