@@ -233,6 +233,9 @@ class ContentActivity : BaseActivity(), GeneratePassphraseDialog.Listener {
                 if (index != -1) {
                     if (first) {
                         edit_content.setSelection(index + autocomplete_search.text.length)
+                        val layout = edit_content.layout
+                        val line = layout.getLineForOffset(index)
+                        scroll_content.smoothScrollTo(0, layout.getLineBaseline(line) + (layout.getLineAscent(line) / 2) - (scroll_content.height / 2))
                         first = false
                     }
                     edit_content.text.setSpan(BackgroundColorSpan(Color.YELLOW), index, index + autocomplete_search.text.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
