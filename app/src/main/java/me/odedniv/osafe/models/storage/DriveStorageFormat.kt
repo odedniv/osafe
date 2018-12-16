@@ -159,6 +159,7 @@ class DriveStorageFormat(
       return Tasks.call(
         executor,
         Callable {
+          val client = client
           val files =
             client
               .files()

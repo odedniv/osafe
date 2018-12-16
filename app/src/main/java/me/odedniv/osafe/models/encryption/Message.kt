@@ -1,5 +1,6 @@
 package me.odedniv.osafe.models.encryption
 
+import android.os.Parcelable
 import android.util.Base64
 import com.google.gson.Gson
 import com.google.gson.GsonBuilder
@@ -10,11 +11,14 @@ import com.google.gson.JsonPrimitive
 import com.google.gson.JsonSerializationContext
 import com.google.gson.JsonSerializer
 import java.lang.reflect.Type
+import kotlinx.parcelize.Parcelize
 
-class Message(val keys: Array<Key>, val content: Content) {
+@Parcelize
+class Message(val keys: Array<Key>, val content: Content) : Parcelable {
   companion object {
     val GSON: Gson =
       GsonBuilder()
+        .disableHtmlEscaping()
         .registerTypeAdapter(
           ByteArray::class.java,
           object : JsonSerializer<ByteArray>, JsonDeserializer<ByteArray> {
@@ -22,17 +26,29 @@ class Message(val keys: Array<Key>, val content: Content) {
               src: ByteArray?,
               typeOfSrc: Type?,
               context: JsonSerializationContext?,
-            ): JsonElement {
-              return JsonPrimitive(Base64.encodeToString(src!!, Base64.NO_WRAP))
-            }
+            ): JsonElement = JsonPrimitive(Base64.encodeToString(src!!, Base64.NO_WRAP))
 
             override fun deserialize(
               json: JsonElement?,
               typeOfT: Type?,
               context: JsonDeserializationContext?,
-            ): ByteArray {
-              return Base64.decode(json!!.asString, Base64.NO_WRAP)
-            }
+            ): ByteArray = Base64.decode(json!!.asString, Base64.NO_WRAP)
+          },
+        )
+        .registerTypeAdapter(
+          Key.Label::class.java,
+          object : JsonSerializer<Key.Label>, JsonDeserializer<Key.Label> {
+            override fun serialize(
+              src: Key.Label?,
+              typeOfSrc: Type?,
+              context: JsonSerializationContext?,
+            ): JsonElement = JsonPrimitive(src!!.toString())
+
+            override fun deserialize(
+              json: JsonElement?,
+              typeOfT: Type?,
+              context: JsonDeserializationContext?,
+            ) = Key.Label.fromString(json!!.asString)
           },
         )
         .create()

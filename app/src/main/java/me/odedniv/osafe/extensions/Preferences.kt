@@ -8,6 +8,7 @@ val Context.preferences: SharedPreferences
   get() = getSharedPreferences(packageName, AppCompatActivity.MODE_PRIVATE)!!
 
 const val PREF_ENCRYPTION_TIMEOUT = "encryption_timeout"
+const val PREF_BIOMETRIC_CREATED_AT = "biometric_created_at"
 const val PREF_DRIVE_NEEDS_UPDATE = "drive_updated"
 const val PREF_DRIVE_LAST_UPDATED_AT = "drive_version"
 const val PREF_GENERATE_TYPE = "generate_type"

@@ -2,13 +2,9 @@ package me.odedniv.osafe.activities
 
 import android.app.Activity
 import android.app.AlertDialog
-import android.content.ComponentName
-import android.content.Context
 import android.content.Intent
-import android.content.ServiceConnection
 import android.graphics.Color
 import android.os.Bundle
-import android.os.IBinder
 import android.text.Editable
 import android.text.Spanned
 import android.text.TextWatcher
@@ -21,6 +17,11 @@ import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
 import android.widget.ArrayAdapter
 import android.widget.Toast
+import androidx.biometric.BiometricManager
+import androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_STRONG
+import androidx.biometric.BiometricManager.BIOMETRIC_SUCCESS
+import androidx.biometric.BiometricPrompt
+import androidx.core.content.ContextCompat
 import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions
 import com.google.android.gms.common.ConnectionResult
@@ -31,18 +32,23 @@ import com.google.android.gms.tasks.Task
 import com.google.android.gms.tasks.TaskCompletionSource
 import com.google.android.gms.tasks.Tasks
 import com.google.api.services.drive.DriveScopes
+import java.time.Instant
+import java.time.temporal.ChronoUnit
 import java.util.Timer
 import java.util.TimerTask
 import java.util.regex.Pattern
 import me.odedniv.osafe.R
 import me.odedniv.osafe.databinding.ActivityContentBinding
 import me.odedniv.osafe.dialogs.GeneratePassphraseDialog
+import me.odedniv.osafe.extensions.PREF_BIOMETRIC_CREATED_AT
 import me.odedniv.osafe.extensions.logFailure
+import me.odedniv.osafe.extensions.preferences
 import me.odedniv.osafe.models.Encryption
 import me.odedniv.osafe.models.Storage
+import me.odedniv.osafe.models.encryption.Content
+import me.odedniv.osafe.models.encryption.Key
 import me.odedniv.osafe.models.encryption.Message
 import me.odedniv.osafe.models.storage.StorageFormat
-import me.odedniv.osafe.services.EncryptionStorageService
 
 @Suppress("PrivatePropertyName") // TODO: Migrate to new names.
 class ContentActivity : BaseActivity(), GeneratePassphraseDialog.Listener {
@@ -80,8 +86,6 @@ class ContentActivity : BaseActivity(), GeneratePassphraseDialog.Listener {
   private var started = false
   private var resumed = false
   private var googleSignInReceived = false
-  private var encryption: Encryption? = null
-  private var encryptionStorage: EncryptionStorageService.EncryptionStorageBinder? = null
   private var imm: InputMethodManager? = null
 
   private var wordsUpdated = true
@@ -99,8 +103,6 @@ class ContentActivity : BaseActivity(), GeneratePassphraseDialog.Listener {
     setSupportActionBar(toolbar_content)
 
     imm = getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager
-    startService(encryptionStorageIntent)
-    bindService(encryptionStorageIntent, encryptionStorageConnection, Context.BIND_AUTO_CREATE)
 
     edit_content.addTextChangedListener(
       object : TextWatcher {
@@ -155,8 +157,13 @@ class ContentActivity : BaseActivity(), GeneratePassphraseDialog.Listener {
     setContentEditable(false)
   }
 
-  override fun onCreateOptionsMenu(menu: Menu?): Boolean {
+  override fun onCreateOptionsMenu(menu: Menu): Boolean {
     menuInflater.inflate(R.menu.menu_content, menu)
+    if (BiometricManager.from(this).canAuthenticate(BIOMETRIC_STRONG) != BIOMETRIC_SUCCESS) {
+      if (PREF_BIOMETRIC_CREATED_AT !in preferences) {
+        menu.findItem(R.id.action_add_biometric).setVisible(true)
+      }
+    }
     return true
   }
 
@@ -164,11 +171,13 @@ class ContentActivity : BaseActivity(), GeneratePassphraseDialog.Listener {
     when (item.itemId) {
       R.id.action_change_passphrase -> {
         startActivityForResult(
-          Intent(this, NewPassphraseActivity::class.java)
-            .putExtra(EXTRA_ENCRYPTION, encryption)
-            .putExtra(EXTRA_STORAGE, storage.state),
+          Intent(this, NewPassphraseActivity::class.java).putExtra(EXTRA_STORAGE, storage.state),
           REQUEST_ENCRYPTION,
         )
+        true
+      }
+      R.id.action_add_biometric -> {
+        addBiometric()
         true
       }
       else -> {
@@ -176,21 +185,15 @@ class ContentActivity : BaseActivity(), GeneratePassphraseDialog.Listener {
       }
     }
 
-  override fun onDestroy() {
-    unbindService(encryptionStorageConnection)
-    super.onDestroy()
-  }
-
   override fun onStart() {
     super.onStart()
     started = true
     getGoogleSignInAccount()
-    getEncryptionAndLoad()
+    load()
   }
 
   override fun onStop() {
     started = false
-    encryption = null
     super.onStop()
   }
 
@@ -220,7 +223,7 @@ class ContentActivity : BaseActivity(), GeneratePassphraseDialog.Listener {
           .addOnSuccessListener {
             storage.setGoogleSignInAccount(it)
             googleSignInReceived = true
-            getEncryptionAndLoad()
+            load()
           }
           .logFailure(this, "GoogleSignIn", "Failed getting Google account")
           .addOnFailureListener { finish() }
@@ -230,13 +233,7 @@ class ContentActivity : BaseActivity(), GeneratePassphraseDialog.Listener {
           finish()
           return
         }
-        data!!
-        encryption = data.getParcelableExtra(EXTRA_ENCRYPTION)
-        encryptionStorage?.set(
-          encryption = encryption!!,
-          timeout = data.getLongExtra(EXTRA_ENCRYPTION_TIMEOUT, 0),
-        )
-        getEncryptionAndLoad()
+        load()
       }
     }
   }
@@ -347,22 +344,49 @@ class ContentActivity : BaseActivity(), GeneratePassphraseDialog.Listener {
     )
   }
 
-  private fun getEncryptionAndLoad() {
-    if (!started || !googleSignInReceived || encryptionStorage == null) return
-    if (encryption == null) encryption = encryptionStorage?.encryption
+  private fun load() {
+    if (!started || !googleSignInReceived) return
     resolveConflicts()
       .addOnSuccessListener {
+        val encryption = Encryption.instance?.value
         if (encryption != null) {
-          // from EncryptionStorageService
-          load()
+          storage
+            .get { message ->
+              if (message == null) return@get
+              encryption
+                .decrypt(message)
+                .addOnSuccessListener { content ->
+                  originalMessage = message
+                  lastStored = content
+                  edit_content.setText(content)
+                  edit_content.isEnabled = true
+                  scroll_content.scrollY = pauseScrollPosition
+                }
+                .addOnFailureListener {
+                  Encryption.instance = null
+                  Toast.makeText(this, R.string.wrong_passphrase, Toast.LENGTH_SHORT).show()
+                  load()
+                }
+            }
+            .addOnSuccessListener { progress_spinner.visibility = View.GONE }
+            .logFailure(this, "Load", "Failed loading")
         } else {
-          // either timed out, never set
-          storage.exists
-            .addOnSuccessListener { exists ->
-              val activity =
-                if (exists) ExistingPassphraseActivity::class.java
-                else NewPassphraseActivity::class.java
-              startActivityForResult(Intent(this@ContentActivity, activity), REQUEST_ENCRYPTION)
+          // either encryption timed out, or never set
+          storage
+            .get()
+            .addOnSuccessListener { message ->
+              if (message == null) {
+                startActivityForResult(
+                  Intent(this@ContentActivity, NewPassphraseActivity::class.java),
+                  REQUEST_ENCRYPTION,
+                )
+              } else {
+                startActivityForResult(
+                  Intent(this@ContentActivity, ExistingPassphraseActivity::class.java)
+                    .putExtra(EXTRA_MESSAGE, message),
+                  REQUEST_ENCRYPTION,
+                )
+              }
             }
             .logFailure(this, "Load", "Failed checking existing")
         }
@@ -373,7 +397,7 @@ class ContentActivity : BaseActivity(), GeneratePassphraseDialog.Listener {
   private var dumpLaterTimer: Timer? = null
 
   private fun dumpLater() {
-    encryption ?: return
+    Encryption.instance ?: return
 
     if (dumpLaterTimer != null) {
       dumpLaterTimer?.cancel()
@@ -397,7 +421,7 @@ class ContentActivity : BaseActivity(), GeneratePassphraseDialog.Listener {
   }
 
   private fun dump(): Task<Unit> {
-    encryption ?: return Tasks.forResult(Unit)
+    val encryption = Encryption.instance?.value ?: return Tasks.forResult(Unit)
 
     if (dumpLaterTimer != null) {
       dumpLaterTimer?.cancel()
@@ -408,36 +432,10 @@ class ContentActivity : BaseActivity(), GeneratePassphraseDialog.Listener {
     if (lastStored == content) return Tasks.forResult(Unit)
     lastStored = content
 
-    return encryption!!
+    return encryption
       .encrypt(content)
       .onSuccessTask { message -> storage.set(message!!) }
       .logFailure(this, "Dump", "Failed encrypting")
-  }
-
-  private fun load() {
-    storage
-      .get { message ->
-        if (message == null) return@get
-        if (encryption == null) return@get
-
-        encryption!!
-          .decrypt(message)
-          .addOnSuccessListener { content ->
-            originalMessage = message
-            lastStored = content
-            edit_content.setText(content)
-            edit_content.isEnabled = true
-            scroll_content.scrollY = pauseScrollPosition
-          }
-          .addOnFailureListener {
-            encryption = null
-            encryptionStorage?.clear()
-            Toast.makeText(this, R.string.wrong_passphrase, Toast.LENGTH_SHORT).show()
-            getEncryptionAndLoad()
-          }
-      }
-      .addOnSuccessListener { progress_spinner.visibility = View.GONE }
-      .logFailure(this, "Load", "Failed loading")
   }
 
   private fun resolveConflicts(): Task<Unit> {
@@ -473,18 +471,70 @@ class ContentActivity : BaseActivity(), GeneratePassphraseDialog.Listener {
     return task.task
   }
 
-  private val encryptionStorageConnection =
-    object : ServiceConnection {
-      override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
-        encryptionStorage = service as EncryptionStorageService.EncryptionStorageBinder
-        getEncryptionAndLoad()
-      }
+  private fun addBiometric() {
+    val biometricPrompt =
+      BiometricPrompt(
+        this,
+        ContextCompat.getMainExecutor(this),
+        object : BiometricPrompt.AuthenticationCallback() {
+          override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
+            super.onAuthenticationSucceeded(result)
+            val biometricCreatedAt = Instant.now().truncatedTo(ChronoUnit.SECONDS)
+            storage
+              .get()
+              .onSuccessTask { oldMessage ->
+                preferences
+                  .edit()
+                  .putLong(PREF_BIOMETRIC_CREATED_AT, biometricCreatedAt.epochSecond)
+                  .apply()
+                Encryption.instance!!
+                  .value
+                  .addKey(
+                    oldMessage!!,
+                    Key.Label.Biometric(biometricCreatedAt),
+                    result.cryptoObject!!.cipher!!,
+                  )
+              }
+              .onSuccessTask { newMessage -> storage.set(newMessage) }
+              .addOnSuccessListener {
+                Toast.makeText(
+                    applicationContext,
+                    getString(R.string.biometric_added_success),
+                    Toast.LENGTH_SHORT,
+                  )
+                  .show()
+              }
+              .logFailure(this@ContentActivity, "AddBiometric", "Failed adding biometric")
+          }
 
-      override fun onServiceDisconnected(name: ComponentName?) {
-        encryptionStorage = null
-      }
-    }
+          override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
+            super.onAuthenticationError(errorCode, errString)
+            Toast.makeText(
+                applicationContext,
+                getString(R.string.biometric_error, errString),
+                Toast.LENGTH_SHORT,
+              )
+              .show()
+          }
 
-  private val encryptionStorageIntent: Intent
-    get() = Intent(this, EncryptionStorageService::class.java)
+          override fun onAuthenticationFailed() {
+            super.onAuthenticationFailed()
+            Toast.makeText(
+                applicationContext,
+                getString(R.string.biometric_failed),
+                Toast.LENGTH_SHORT,
+              )
+              .show()
+          }
+        },
+      )
+    biometricPrompt.authenticate(
+      BiometricPrompt.PromptInfo.Builder()
+        .setAllowedAuthenticators(BIOMETRIC_STRONG)
+        .setTitle(getString(R.string.add_biometric_title))
+        .setNegativeButtonText(getString(R.string.add_biometric_cancel))
+        .build(),
+      BiometricPrompt.CryptoObject(Content.biometricEncryptCipher()),
+    )
+  }
 }

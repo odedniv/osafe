@@ -1,7 +1,6 @@
 package me.odedniv.osafe.activities
 
 import android.app.Activity
-import android.content.Intent
 import android.os.Bundle
 import android.text.Editable
 import android.text.TextWatcher
@@ -9,8 +8,11 @@ import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
 import android.widget.LinearLayout
 import com.google.android.gms.tasks.Tasks
+import java.time.Duration
 import me.odedniv.osafe.databinding.ActivityNewPassphraseBinding
 import me.odedniv.osafe.dialogs.GeneratePassphraseDialog
+import me.odedniv.osafe.extensions.PREF_ENCRYPTION_TIMEOUT
+import me.odedniv.osafe.extensions.preferences
 import me.odedniv.osafe.models.Encryption
 import me.odedniv.osafe.models.Storage
 import me.odedniv.osafe.models.encryption.Message
@@ -68,7 +70,7 @@ class NewPassphraseActivity : BaseActivity(), GeneratePassphraseDialog.Listener 
 
   private fun updateSaveEnabledState() {
     button_save.isEnabled =
-      !edit_passphrase.text.toString().isBlank() &&
+      edit_passphrase.text.toString().isNotBlank() &&
         edit_passphrase.text.toString() == edit_passphrase_confirm.text.toString()
   }
 
@@ -88,8 +90,7 @@ class NewPassphraseActivity : BaseActivity(), GeneratePassphraseDialog.Listener 
   private fun save() {
     button_save.isEnabled = false
     val passphrase = edit_passphrase.text.toString()
-    val encryption = intent.getParcelableExtra<Encryption>(EXTRA_ENCRYPTION)
-    encryption ?: return newEncryption(passphrase)
+    val encryption = Encryption.instance?.value ?: return newEncryption(passphrase)
 
     // changing key on for existing encryption
     val storage = Storage(this)
@@ -106,7 +107,7 @@ class NewPassphraseActivity : BaseActivity(), GeneratePassphraseDialog.Listener 
       }
       .addOnCanceledListener { newEncryption(passphrase) } // no content to re-encrypt
       .addOnSuccessListener {
-        setResult(Activity.RESULT_OK, Intent().putExtra(EXTRA_ENCRYPTION, encryption))
+        setResult(Activity.RESULT_OK)
         finish()
       }
       .addOnFailureListener {
@@ -117,10 +118,13 @@ class NewPassphraseActivity : BaseActivity(), GeneratePassphraseDialog.Listener 
   }
 
   private fun newEncryption(passphrase: String) {
-    setResult(
-      Activity.RESULT_OK,
-      Intent().putExtra(EXTRA_ENCRYPTION, Encryption(passphrase = passphrase)),
-    )
+    Encryption.instance =
+      Encryption.Instance(
+        value = Encryption.fromPassphrase(passphrase),
+        owner = this,
+        timeout = Duration.ofSeconds(preferences.getLong(PREF_ENCRYPTION_TIMEOUT, 0)),
+      )
+    setResult(Activity.RESULT_OK)
     finish()
   }
 }

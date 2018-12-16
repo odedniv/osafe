@@ -1,7 +1,7 @@
 package me.odedniv.osafe.models
 
-import android.os.Parcel
 import java.security.SecureRandom
+import java.time.Duration
 
 val RANDOM = SecureRandom()
 
@@ -11,8 +11,4 @@ fun random(size: Int): ByteArray {
   return iv
 }
 
-fun readParcelByteArray(parcel: Parcel): ByteArray {
-  val result = ByteArray(parcel.readInt())
-  parcel.readByteArray(result)
-  return result
-}
+fun Duration.asSeconds() = toMillis() / 1000

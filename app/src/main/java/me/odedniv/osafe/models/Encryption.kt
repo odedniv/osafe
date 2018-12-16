@@ -1,134 +1,104 @@
 package me.odedniv.osafe.models
 
+import android.app.Activity
 import android.os.AsyncTask
-import android.os.Parcel
-import android.os.Parcelable
 import com.google.android.gms.tasks.Task
 import com.google.android.gms.tasks.Tasks
-import java.security.MessageDigest
-import java.util.concurrent.Callable
+import java.time.Duration
+import javax.crypto.Cipher
 import me.odedniv.osafe.models.encryption.Content
 import me.odedniv.osafe.models.encryption.Key
 import me.odedniv.osafe.models.encryption.Message
 
-class Encryption : Parcelable {
-  private var key: ByteArray? = null
-  private var original: Message? = null
-  private var baseKey: ByteArray? = null
+class Encryption(private val key: Key, private val baseKey: ByteArray) {
+  @Volatile private var original: Message? = null
 
-  private constructor(key: ByteArray) {
-    this.key = key
-  }
+  fun encrypt(content: String): Task<Message> =
+    Tasks.call(AsyncTask.THREAD_POOL_EXECUTOR) {
+      Message(
+          keys = ((original?.keys ?: arrayOf()) + key).toSet().toTypedArray(),
+          content =
+            Content.encrypt(Content.encryptCipher(baseKey), content.toByteArray(Charsets.UTF_8)),
+        )
+        .also { original = it }
+    }
 
-  constructor(passphrase: String) {
-    setPassphrase(passphrase)
-  }
+  fun decrypt(message: Message): Task<String?> =
+    Tasks.call(AsyncTask.THREAD_POOL_EXECUTOR) {
+      message.content
+        .decrypt(message.content.decryptCipher(baseKey))
+        ?.toString(Charsets.UTF_8)
+        ?.also { original = message }
+    }
 
-  private fun setPassphrase(passphrase: String) {
-    key = MessageDigest.getInstance("SHA-512").digest(passphrase.toByteArray(Charsets.UTF_8))
-  }
+  fun changeKey(message: Message, passphrase: String): Task<Message> =
+    Tasks.call(AsyncTask.THREAD_POOL_EXECUTOR) {
+      val keyLabel = Key.Label.Passphrase()
+      Message(
+          keys =
+            ((message.keys.toSet() - key) +
+                Key(
+                  label = keyLabel,
+                  content =
+                    Content.encrypt(Content.encryptCipher(keyLabel.digest(passphrase)), baseKey),
+                ))
+              .toTypedArray(),
+          content = message.content,
+        )
+        .also { original = it }
+    }
 
-  fun encrypt(content: String): Task<Message> {
-    return Tasks.call(
-      AsyncTask.THREAD_POOL_EXECUTOR,
-      Callable {
-        if (baseKey == null) {
-          baseKey = random(64)
-        }
-        original =
-          Message(
-            keys =
-              original?.keys
-                ?: Array(1) {
-                  Key(
-                    label = Key.Label.PASSPHRASE,
-                    content = Content.encrypt(key = key!!, content = baseKey!!),
-                  )
-                },
-            content =
-              Content.encrypt(key = baseKey!!, content = content.toByteArray(Charsets.UTF_8)),
-          )
-        original!!
-      },
+  fun addKey(message: Message, label: Key.Label, cipher: Cipher): Task<Message> =
+    Tasks.call(AsyncTask.THREAD_POOL_EXECUTOR) {
+      Message(
+          keys =
+            message.keys +
+              Key(label = label, content = Content.encrypt(cipher = cipher, content = baseKey)),
+          content = message.content,
+        )
+        .also { original = it }
+    }
+
+  fun removeKeys(message: Message, vararg keys: Key): Task<Message> {
+    return Tasks.forResult(
+      Message(
+          keys = (message.keys.toSet() - keys.toSet()).toTypedArray(),
+          content = message.content,
+        )
+        .also { original = it }
     )
   }
 
-  /*
-  Checks the encryption against the message's keys, and assumes the baseKey after successful decryption.
-  Returns the key's index in the message, fails the task if the key is invalid.
-  */
-  private fun check(message: Message): Task<Int> {
-    return Tasks.call(
-      AsyncTask.THREAD_POOL_EXECUTOR,
-      Callable {
-        var keyIndex: Int? = null
-        message.keys.withIndex().any {
-          if (it.value.label != Key.Label.PASSPHRASE) return@any false
-          try {
-            baseKey = it.value.content.decrypt(key!!)
-          } catch (e: Exception) {
-            return@any false
-          }
-          keyIndex = it.index
-          true
+  class Instance
+  private constructor(val value: Encryption, val ownerName: String, val timeout: Duration) {
+    val owner =
+      object {
+        override fun equals(other: Any?): Boolean {
+          return super.equals(other) || (other is Activity && other.localClassName == ownerName)
         }
-        if (keyIndex == null) throw RuntimeException("Decryption failed")
-        original = message
-        keyIndex!!
-      },
-    )
+      }
+
+    constructor(
+      value: Encryption,
+      owner: Activity,
+      timeout: Duration,
+    ) : this(value = value, ownerName = owner.localClassName, timeout = timeout)
+
+    fun withOwner(owner: Activity) = Instance(value, owner, timeout)
   }
 
-  fun decrypt(message: Message): Task<String> {
-    return check(message).onSuccessTask {
-      Tasks.call(
-        AsyncTask.THREAD_POOL_EXECUTOR,
-        Callable { message.content.decrypt(baseKey!!).toString(Charsets.UTF_8) },
-      )
-    }
-  }
+  companion object {
+    var instance: Instance? = null
 
-  fun changeKey(message: Message, passphrase: String): Task<Message> {
-    return check(message).onSuccessTask { keyIndex ->
-      Tasks.call(
-        AsyncTask.THREAD_POOL_EXECUTOR,
-        Callable {
-          setPassphrase(passphrase)
-          val keys = message.keys.copyOf()
-          keys[keyIndex!!] =
-            Key(
-              label = Key.Label.PASSPHRASE,
-              content = Content.encrypt(key = key!!, content = baseKey!!),
-            )
-          original = Message(keys = keys, content = message.content)
-          original!!
-        },
-      )
-    }
-  }
-
-  /*
-  Parcelable implementation
-   */
-
-  private constructor(parcel: Parcel) : this(key = readParcelByteArray(parcel))
-
-  override fun writeToParcel(parcel: Parcel, flags: Int) {
-    parcel.writeInt(key!!.size)
-    parcel.writeByteArray(key)
-  }
-
-  override fun describeContents(): Int {
-    return 0
-  }
-
-  companion object CREATOR : Parcelable.Creator<Encryption> {
-    override fun createFromParcel(parcel: Parcel): Encryption {
-      return Encryption(parcel)
-    }
-
-    override fun newArray(size: Int): Array<Encryption?> {
-      return arrayOfNulls(size)
+    fun fromPassphrase(passphrase: String): Encryption {
+      val baseKey = random(64)
+      val keyLabel = Key.Label.Passphrase()
+      val key =
+        Key(
+          label = keyLabel,
+          content = Content.encrypt(Content.encryptCipher(keyLabel.digest(passphrase)), baseKey),
+        )
+      return Encryption(key, baseKey)
     }
   }
 }

@@ -3,12 +3,18 @@
 
     <!-- ContentActivity -->
     <string name="action_change_passphrase">Change passphrase</string>
+    <string name="action_add_biometric">Add fingerprint</string>
     <string name="content_hint">Write your secrets here&#8230;</string>
     <string name="wrong_passphrase">Wrong passphrase, try again.</string>
     <string name="resolve_conflict_title">%1$s has been updated since the last update here, what would you like to do?</string>
     <string name="resolve_conflict_overwrite">Overwrite it</string>
     <string name="resolve_conflict_use">Use it</string>
     <string name="search">Search&#8230;</string>
+    <string name="add_biometric_title">Add fingerprint</string>
+    <string name="add_biometric_cancel">Cancel</string>
+    <string name="biometric_added_success">Fingerprint added successfully!</string>
+    <string name="biometric_error">Authentication error: %s.</string>
+    <string name="biometric_failed">Authentication failed.</string>
 
     <!-- NewPassphraseActivity -->
     <string name="new_passphrase">Enter your new passphrase&#8230;</string>
@@ -20,6 +26,10 @@
     <string name="existing_passphrase">Enter your passphrase&#8230;</string>
     <string name="existing_passphrase_submit">Submit</string>
     <string name="existing_encryption_timeout_title">Ask me again:</string>
+    <string name="existing_use_biometric">Use fingerprint</string>
+    <string name="existing_use_biometric_title">Use fingerprint</string>
+    <string name="existing_use_biometric_cancel">Cancel</string>
+    <string name="existing_wrong_biometric">Biometric decryption failed.</string>
 
     <string name="encryption_timeout_immediately">Immediately</string>
     <string name="encryption_timeout_1minute">1 minute</string>
