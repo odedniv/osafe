@@ -36,7 +36,7 @@ class Encryption: Parcelable {
                 baseKey = random(64)
             }
             original = Message(
-                    keys = original?.keys ?: Array(1, {
+                    keys = original?.keys ?: Array(1) {
                         Key(
                                 label = Key.Label.PASSPHRASE,
                                 content = Content.encrypt(
@@ -44,7 +44,7 @@ class Encryption: Parcelable {
                                         content = baseKey!!
                                 )
                         )
-                    }),
+                    },
                     content = Content.encrypt(
                             key = baseKey!!,
                             content = content.toByteArray(Charsets.UTF_8)

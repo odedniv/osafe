@@ -58,13 +58,13 @@ class GeneratePassphraseDialog : AppCompatDialogFragment() {
 
         return AlertDialog.Builder(activity)
                 .setView(layout)
-                .setNegativeButton(android.R.string.cancel, { _, _ ->
+                .setNegativeButton(android.R.string.cancel) { _, _ ->
                     dismiss()
-                })
-                .setPositiveButton(R.string.passphrase_insert, { _, _ ->
+                }
+                .setPositiveButton(R.string.passphrase_insert) { _, _ ->
                     listener?.onInsertPassphrase(textGeneratedPassphrase!!.text.toString())
                     dismiss()
-                })
+                }
                 .create()
     }
 

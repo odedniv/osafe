@@ -78,7 +78,8 @@ class NewPassphraseActivity : BaseActivity(), GeneratePassphraseDialog.Listener 
                 .onSuccessTask { oldMessage ->
                     oldMessage ?: return@onSuccessTask Tasks.forCanceled<Message>()
                     encryption.changeKey(oldMessage, passphrase)
-                }.onSuccessTask { newMessage ->
+                }
+                .onSuccessTask { newMessage ->
                     newMessage ?: return@onSuccessTask Tasks.forCanceled<Unit>()
                     storage.set(newMessage)
                 }

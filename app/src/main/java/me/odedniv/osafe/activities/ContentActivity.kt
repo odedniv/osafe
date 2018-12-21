@@ -61,6 +61,7 @@ class ContentActivity : BaseActivity(), GeneratePassphraseDialog.Listener {
     private var contentEditable = true
     private var originalMessage: Message? = null
     private var lastStored: String? = null
+    private var pauseScrollPosition = 0
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -169,6 +170,7 @@ class ContentActivity : BaseActivity(), GeneratePassphraseDialog.Listener {
         resumed = false
         dump()
         // reset instance state
+        pauseScrollPosition = scroll_content.scrollY
         edit_content.text.clear()
         autocomplete_search.text.clear()
         setContentEditable(false)
@@ -392,6 +394,7 @@ class ContentActivity : BaseActivity(), GeneratePassphraseDialog.Listener {
                         lastStored = content
                         edit_content.setText(content)
                         edit_content.isEnabled = true
+                        scroll_content.scrollY = pauseScrollPosition
                     }
                     .addOnFailureListener {
                         encryption = null
@@ -417,15 +420,15 @@ class ContentActivity : BaseActivity(), GeneratePassphraseDialog.Listener {
 
         AlertDialog.Builder(this)
                 .setMessage(getString(R.string.resolve_conflict_title, getString(currentStorageFormat.stringId)))
-                .setNegativeButton(R.string.resolve_conflict_overwrite, { _, _ ->
+                .setNegativeButton(R.string.resolve_conflict_overwrite) { _, _ ->
                     currentStorageFormat.clear()
                     resolveNextConflict(conflictedStorageFormats, index - 1)
                             .addOnSuccessListener { task.setResult(Unit) }
-                })
-                .setPositiveButton(R.string.resolve_conflict_use, { _, _ ->
+                }
+                .setPositiveButton(R.string.resolve_conflict_use) { _, _ ->
                     storage.resolveConflictWith(currentStorageFormat)
                     task.setResult(Unit)
-                })
+                }
                 .show()
 
         return task.task

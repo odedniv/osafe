@@ -96,7 +96,7 @@ class DriveStorageFormat(private val context: Context,
                     val driveFolder = driveFolderTask.result
                     val driveContents = contentsTask.result
 
-                    driveContents.outputStream.use {
+                    driveContents!!.outputStream.use {
                         it.write(content)
                     }
 

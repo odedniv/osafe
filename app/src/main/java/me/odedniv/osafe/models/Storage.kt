@@ -88,7 +88,7 @@ class Storage(private val context: Context) {
             return Tasks.whenAll(tasks.values)
                     .onSuccessTask {
                         Tasks.forResult(
-                                storageFormats.filter { tasks[it]!!.result }
+                                storageFormats.filter { tasks[it]!!.result!! }
                         )
                     }
         }
@@ -104,7 +104,7 @@ class Storage(private val context: Context) {
                 }.toResult(Unit)
     }
 
-    fun get() = get({ })
+    fun get() = get { }
 
     fun get(receiver: (message: Message?) -> Unit): Task<Message?> {
         // prefer the last storage format (in the list of storage formats)

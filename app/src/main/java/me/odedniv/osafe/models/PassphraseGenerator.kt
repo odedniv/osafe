@@ -30,18 +30,18 @@ fun generatePassphrase(type: PassphraseType, length: Int, rules: EnumSet<Passphr
     while (result == null) {
         result = when (type) {
             PassphraseType.WORDS -> {
-                var r = Array(length, { WORDS[RANDOM.nextInt(WORDS.size)] }).joinToString(" ")
+                var r = Array(length) { WORDS[RANDOM.nextInt(WORDS.size)] }.joinToString(" ")
                 if (rules.contains(PassphraseRule.THREE_SYMBOL_TYPES)) {
                     r += String(charArrayOf(' ', randomSymbol(SymbolType.DIGITS), randomSymbol(SymbolType.UPPER_CASE)))
                 }
                 r
             }
             PassphraseType.SYMBOLS ->
-                String(CharArray(length, { randomSymbol(SymbolType.SYMBOLS) }))
+                String(CharArray(length) { randomSymbol(SymbolType.SYMBOLS) })
             PassphraseType.LETTERS_AND_DIGITS ->
-                String(CharArray(length, { randomSymbol(SymbolType.LOWER_CASE, SymbolType.UPPER_CASE, SymbolType.DIGITS) }))
+                String(CharArray(length) { randomSymbol(SymbolType.LOWER_CASE, SymbolType.UPPER_CASE, SymbolType.DIGITS) })
             PassphraseType.LETTERS -> {
-                var r = String(CharArray(length, { randomSymbol(SymbolType.LOWER_CASE, SymbolType.UPPER_CASE) }))
+                var r = String(CharArray(length) { randomSymbol(SymbolType.LOWER_CASE, SymbolType.UPPER_CASE) })
                 if (rules.contains(PassphraseRule.THREE_SYMBOL_TYPES)) {
                     r = r.slice(0..length - 2) + randomSymbol(SymbolType.SYMBOLS).toString()
                 }
