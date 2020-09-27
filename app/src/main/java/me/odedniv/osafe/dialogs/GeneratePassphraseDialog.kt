@@ -88,7 +88,7 @@ class GeneratePassphraseDialog : AppCompatDialogFragment() {
                                     context!!.preferences.getString(
                                             PREF_GENERATE_TYPE,
                                             PASSPHRASE_TYPES[spinnerPassphraseType!!.selectedItemPosition].toString()
-                                    )
+                                    )!!
                             )
                     )
             )

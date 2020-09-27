@@ -24,10 +24,12 @@ import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions
 import com.google.android.gms.common.ConnectionResult
 import com.google.android.gms.common.GoogleApiAvailability
-import com.google.android.gms.drive.Drive
+import com.google.android.gms.common.Scopes
+import com.google.android.gms.common.api.Scope
 import com.google.android.gms.tasks.Task
 import com.google.android.gms.tasks.TaskCompletionSource
 import com.google.android.gms.tasks.Tasks
+import com.google.api.services.drive.DriveScopes
 import kotlinx.android.synthetic.main.activity_content.*
 import me.odedniv.osafe.R
 import me.odedniv.osafe.dialogs.GeneratePassphraseDialog
@@ -300,7 +302,9 @@ class ContentActivity : BaseActivity(), GeneratePassphraseDialog.Listener {
             return
         }
         val googleSignInAccount = GoogleSignIn.getLastSignedInAccount(this)
-        if (googleSignInAccount != null && googleSignInAccount.grantedScopes.contains(Drive.SCOPE_FILE)) {
+        if (googleSignInAccount != null
+                && googleSignInAccount.grantedScopes.contains(Scope(Scopes.EMAIL))
+                && googleSignInAccount.grantedScopes.contains(Scope(DriveScopes.DRIVE_FILE))) {
             storage.setGoogleSignInAccount(googleSignInAccount)
             googleSignInReceived = true
             return
@@ -309,7 +313,8 @@ class ContentActivity : BaseActivity(), GeneratePassphraseDialog.Listener {
                 GoogleSignIn.getClient(
                         this,
                         GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
-                                .requestScopes(Drive.SCOPE_FILE)
+                                .requestEmail()
+                                .requestScopes(Scope(DriveScopes.DRIVE_FILE))
                                 .build()
                 ).signInIntent,
                 REQUEST_GOOGLE_SIGN_IN
