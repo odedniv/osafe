@@ -2,20 +2,37 @@ package me.odedniv.osafe.models.storage
 
 import android.content.Context
 import com.google.android.gms.auth.api.signin.GoogleSignInAccount
-import com.google.android.gms.drive.*
-import com.google.android.gms.drive.query.Filters
-import com.google.android.gms.drive.query.Query
-import com.google.android.gms.drive.query.SearchableField
 import com.google.android.gms.tasks.Task
 import com.google.android.gms.tasks.Tasks
+import com.google.api.client.extensions.android.http.AndroidHttp
+import com.google.api.client.googleapis.extensions.android.gms.auth.GoogleAccountCredential
+import com.google.api.client.http.ByteArrayContent
+import com.google.api.client.json.gson.GsonFactory
+import com.google.api.services.drive.Drive
+import com.google.api.services.drive.DriveScopes
+import com.google.api.services.drive.model.File
 import me.odedniv.osafe.R
-import me.odedniv.osafe.extensions.*
+import me.odedniv.osafe.extensions.PREF_DRIVE_LAST_UPDATED_AT
+import me.odedniv.osafe.extensions.PREF_DRIVE_NEEDS_UPDATE
+import me.odedniv.osafe.extensions.preferences
+import me.odedniv.osafe.extensions.toResult
 import java.util.*
+import java.util.concurrent.Callable
+import java.util.concurrent.Executor
+import java.util.concurrent.Executors
 
 class DriveStorageFormat(private val context: Context,
-                         googleSignInAccount: GoogleSignInAccount) : StorageFormat {
-    private val client = Drive.getDriveClient(context, googleSignInAccount)
-    private val resourceClient = Drive.getDriveResourceClient(context, googleSignInAccount)
+                         private val googleSignInAccount: GoogleSignInAccount) : StorageFormat {
+    private val client = Drive.Builder(AndroidHttp.newCompatibleTransport(), GsonFactory(), getCredentials())
+            .setApplicationName("OSafe")
+            .build()
+    private var executor: Executor = Executors.newSingleThreadExecutor()
+
+    private fun getCredentials(): GoogleAccountCredential {
+        val credential = GoogleAccountCredential.usingOAuth2(context,  listOf(DriveScopes.DRIVE_FILE))
+        credential.selectedAccount = googleSignInAccount.account
+        return credential
+    }
 
     override val stringId: Int
         get() = R.string.storage_format_drive
@@ -30,27 +47,26 @@ class DriveStorageFormat(private val context: Context,
         if (!context.preferences.getBoolean(PREF_DRIVE_NEEDS_UPDATE, false))
             return Tasks.forResult(false)
         return query
-                .onSuccessTask { driveFileMetadata ->
+                .onSuccessTask { metadata ->
                     // drive needs update, and remote file was updated since the last update from this resourceClient
                     Tasks.forResult(
-                            driveFileMetadata != null
-                                    && driveFileMetadata.modifiedDate.time > context.preferences.getLong(PREF_DRIVE_LAST_UPDATED_AT, 0L)
+                            metadata != null
+                                    && metadata.modifiedDate.time > context.preferences.getLong(PREF_DRIVE_LAST_UPDATED_AT, 0L)
                     )
                 }
     }
 
     override fun read(): Task<ByteArray?> {
         if (context.preferences.getBoolean(PREF_DRIVE_NEEDS_UPDATE, false)) return Tasks.forResult(null)
+
         return query
-                .onSuccessTask<ByteArray?> { driveFileMetadata ->
-                    driveFileMetadata ?: return@onSuccessTask Tasks.forResult(null)
-                    resourceClient
-                            .openFile(driveFileMetadata.driveFile, DriveFile.MODE_READ_ONLY)
-                            .onSuccessTask {
-                                it?.inputStream.use {
-                                    Tasks.forResult(it?.readBytes())
-                                }
-                            }
+                .onSuccessTask<ByteArray?> { metadata ->
+                    metadata ?: return@onSuccessTask Tasks.forResult(null)
+                    Tasks.call(executor, Callable {
+                        client.files().get(metadata.id).executeMediaAsInputStream().use {
+                            it.readBytes()
+                        }
+                    })
                 }
     }
 
@@ -64,71 +80,50 @@ class DriveStorageFormat(private val context: Context,
         _driveFileMetadata = null
 
         return query
-                .onSuccessTask { driveFileMetadata ->
-                    if (driveFileMetadata == null) {
+                .onSuccessTask { metadata ->
+                    if (metadata == null) {
                         create(content)
                     } else {
-                        update(driveFileMetadata.driveFile, content)
+                        update(metadata.id, content)
                     }
                 }
-                .onSuccessTask { driveFile ->
-                    resourceClient.getMetadata(driveFile!!)
-                }
-                .addOnSuccessListener { metadata ->
+                .addOnSuccessListener { fileId ->
+                    val now = Date()
                     _queried = true
                     _driveFileMetadata = DriveFileMetadata(
-                            driveFile = metadata.driveId.asDriveFile(),
-                            modifiedDate = metadata.modifiedDate
+                            id = fileId,
+                            modifiedDate = now
                     )
                     context.preferences
                             .edit()
                             .putBoolean(PREF_DRIVE_NEEDS_UPDATE, false)
-                            .putLong(PREF_DRIVE_LAST_UPDATED_AT, metadata.modifiedDate.time)
+                            .putLong(PREF_DRIVE_LAST_UPDATED_AT, now.time)
                             .apply()
                 }.toResult(Unit)
     }
 
-    private fun create(content: ByteArray): Task<DriveFile> {
-        val driveFolderTask = driveFolder
-        val contentsTask = resourceClient.createContents()
-        return Tasks.whenAll(driveFolderTask, contentsTask)
-                .onSuccessTask {
-                    val driveFolder = driveFolderTask.result
-                    val driveContents = contentsTask.result
-
-                    driveContents!!.outputStream.use {
-                        it.write(content)
-                    }
-
-                    resourceClient.createFile(
-                            driveFolder!!,
-                            MetadataChangeSet.Builder()
-                                    .setTitle(StorageFormat.FILENAME)
-                                    .setMimeType("application/json")
-                                    .build(),
-                            driveContents
-                    )
-                }
+    private fun create(content: ByteArray): Task<String> {
+        return Tasks.call(executor, Callable {
+            client.files().create(
+                    File()
+                            .setParents(listOf("root"))
+                            .setMimeType("application/json")
+                            .setName(StorageFormat.FILENAME),
+                    ByteArrayContent("application/json", content)
+            ).execute().id
+        })
     }
 
-    private fun update(driveFile: DriveFile, content: ByteArray): Task<DriveFile> {
-        return resourceClient
-                .openFile(driveFile, DriveFile.MODE_WRITE_ONLY)
-                .onSuccessTask { driveContents ->
-                    driveContents!!.outputStream.use {
-                        it.write(content)
-                    }
-                    resourceClient.commitContents(
-                            driveContents,
-                            MetadataChangeSet.Builder()
-                                    .setTitle(StorageFormat.FILENAME)
-                                    .setMimeType("application/json")
-                                    .build(),
-                            ExecutionOptions.Builder()
-                                    .setConflictStrategy(ExecutionOptions.CONFLICT_STRATEGY_OVERWRITE_REMOTE)
-                                    .build()
-                    )
-                }.toResult(driveFile)
+    private fun update(fileId: String, content: ByteArray): Task<String> {
+        return Tasks.call(executor, Callable {
+            client.files().update(
+                    fileId,
+                    File()
+                            .setMimeType("application/json")
+                            .setName(StorageFormat.FILENAME),
+                    ByteArrayContent("application/json", content)
+            ).execute().id
+        })
     }
 
     override fun clear(): Task<Unit> {
@@ -136,7 +131,11 @@ class DriveStorageFormat(private val context: Context,
         _queried = true
 
         return query
-                .onSuccessTask { driveFileMetadata -> resourceClient.delete(driveFileMetadata!!.driveFile) }
+                .onSuccessTask { metadata ->
+                    Tasks.call(executor, Callable {
+                        client.files().delete(metadata!!.id).execute()
+                    })
+                }
                 .addOnSuccessListener {
                     context.preferences
                             .edit()
@@ -147,7 +146,7 @@ class DriveStorageFormat(private val context: Context,
     }
 
     private data class DriveFileMetadata(
-            val driveFile: DriveFile,
+            val id: String,
             val modifiedDate: Date
     )
     private var _queried = false
@@ -155,42 +154,18 @@ class DriveStorageFormat(private val context: Context,
     private val query: Task<DriveFileMetadata?>
         get() {
             if (_queried) return Tasks.forResult(_driveFileMetadata)
-            return driveFolder
-                    .onSuccessTask { driveFolder ->
-                        client.requestSync()
-                                .ignoreFailure()
-                                .onSuccessTask {
-                                    resourceClient.query(
-                                            Query.Builder()
-                                                    .addFilter(Filters.`in`(SearchableField.PARENTS, driveFolder!!.driveId))
-                                                    .addFilter(Filters.eq(SearchableField.TITLE, StorageFormat.FILENAME))
-                                                    .addFilter(Filters.eq(SearchableField.TRASHED, false))
-                                                    .build()
-                                    )
-                                }
-                    }
-                    .onSuccessTask { metadataBuffer ->
-                        _queried = true
-                        _driveFileMetadata =
-                                if (metadataBuffer!!.count > 0)
-                                    DriveFileMetadata(
-                                            driveFile = metadataBuffer[0].driveId.asDriveFile(),
-                                            modifiedDate = metadataBuffer[0].modifiedDate
-                                    )
-                                else
-                                    null
-                        metadataBuffer.release()
-                        Tasks.forResult(_driveFileMetadata)
-                    }
-        }
-
-    private var _driveFolder: DriveFolder? = null
-    private val driveFolder: Task<DriveFolder>
-        get() {
-            if (_driveFolder != null) return Tasks.forResult(_driveFolder)
-            return resourceClient.rootFolder
-                    .addOnSuccessListener { driveFolder ->
-                        _driveFolder = driveFolder
-                    }
+            return Tasks.call(executor, Callable {
+                val files = client.files().list()
+                        .setQ("name = '${StorageFormat.FILENAME}' and 'root' in parents")
+                        .setFields("files(id, modifiedTime)")
+                        .execute()
+                if (files.files.size > 0)
+                    DriveFileMetadata(
+                            id = files.files[0].id,
+                            modifiedDate = Date(files.files[0].modifiedTime.value)
+                    )
+                else
+                    null
+            })
         }
 }
