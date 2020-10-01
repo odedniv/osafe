@@ -16,6 +16,7 @@ import me.odedniv.osafe.extensions.PREF_DRIVE_LAST_UPDATED_AT
 import me.odedniv.osafe.extensions.PREF_DRIVE_NEEDS_UPDATE
 import me.odedniv.osafe.extensions.preferences
 import me.odedniv.osafe.extensions.toResult
+import java.lang.RuntimeException
 import java.util.*
 import java.util.concurrent.Callable
 import java.util.concurrent.Executor
@@ -156,16 +157,19 @@ class DriveStorageFormat(private val context: Context,
             if (_queried) return Tasks.forResult(_driveFileMetadata)
             return Tasks.call(executor, Callable {
                 val files = client.files().list()
-                        .setQ("name = '${StorageFormat.FILENAME}' and 'root' in parents")
+                        .setQ("name = '${StorageFormat.FILENAME}' and 'root' in parents and trashed = false")
                         .setFields("files(id, modifiedTime)")
                         .execute()
-                if (files.files.size > 0)
-                    DriveFileMetadata(
-                            id = files.files[0].id,
-                            modifiedDate = Date(files.files[0].modifiedTime.value)
-                    )
-                else
-                    null
+                files.files ?: return@Callable null
+                when (files.files.size) {
+                    0 -> null
+                    1 ->
+                        DriveFileMetadata(
+                                id = files.files[0].id,
+                                modifiedDate = Date(files.files[0].modifiedTime.value)
+                        )
+                    else -> throw RuntimeException("More than one ${StorageFormat.FILENAME} in Drive.")
+                }
             })
         }
 }
