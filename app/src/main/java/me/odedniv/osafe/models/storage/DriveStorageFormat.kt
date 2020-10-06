@@ -106,10 +106,7 @@ class DriveStorageFormat(private val context: Context,
     private fun create(content: ByteArray): Task<String> {
         return Tasks.call(executor, Callable {
             client.files().create(
-                    File()
-                            .setParents(listOf("root"))
-                            .setMimeType("application/json")
-                            .setName(StorageFormat.FILENAME),
+                    File().setName(StorageFormat.FILENAME),
                     ByteArrayContent("application/json", content)
             ).execute().id
         })
@@ -119,9 +116,7 @@ class DriveStorageFormat(private val context: Context,
         return Tasks.call(executor, Callable {
             client.files().update(
                     fileId,
-                    File()
-                            .setMimeType("application/json")
-                            .setName(StorageFormat.FILENAME),
+                    File().setName(StorageFormat.FILENAME),
                     ByteArrayContent("application/json", content)
             ).execute().id
         })
