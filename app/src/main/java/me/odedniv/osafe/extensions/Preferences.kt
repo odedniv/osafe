@@ -4,9 +4,8 @@ import android.content.Context
 import android.content.SharedPreferences
 import androidx.appcompat.app.AppCompatActivity
 
-
 val Context.preferences: SharedPreferences
-    get() = getSharedPreferences(packageName, AppCompatActivity.MODE_PRIVATE)!!
+  get() = getSharedPreferences(packageName, AppCompatActivity.MODE_PRIVATE)!!
 
 const val PREF_ENCRYPTION_TIMEOUT = "encryption_timeout"
 const val PREF_DRIVE_NEEDS_UPDATE = "drive_updated"

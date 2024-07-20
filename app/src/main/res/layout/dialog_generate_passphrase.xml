@@ -99,6 +99,6 @@
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/text_generated_passphrase"/>
+        app:layout_constraintTop_toBottomOf="@id/text_generated_passphrase" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>
