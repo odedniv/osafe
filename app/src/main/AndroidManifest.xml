@@ -16,7 +16,8 @@
             android:name=".activities.ContentActivity"
             android:theme="@style/Theme.AppCompat.Light.NoActionBar"
             android:configChanges="keyboard|keyboardHidden|orientation|screenSize"
-            android:windowSoftInputMode="adjustResize">
+            android:windowSoftInputMode="adjustResize"
+            android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <action android:name="android.intent.action.VIEW" />
@@ -26,10 +27,12 @@
         </activity>
         <activity
             android:name=".activities.NewPassphraseActivity"
-            android:windowSoftInputMode="adjustResize" />
+            android:windowSoftInputMode="adjustResize"
+            android:exported="false" />
         <activity
             android:name=".activities.ExistingPassphraseActivity"
-            android:windowSoftInputMode="adjustResize" />
+            android:windowSoftInputMode="adjustResize"
+            android:exported="false" />
 
         <service
             android:name=".services.EncryptionStorageService"

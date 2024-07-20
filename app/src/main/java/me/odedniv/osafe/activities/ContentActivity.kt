@@ -7,14 +7,11 @@ import android.content.Context
 import android.content.Intent
 import android.content.ServiceConnection
 import android.graphics.Color
-import android.os.Build
 import android.os.Bundle
 import android.os.IBinder
-import android.support.design.widget.FloatingActionButton
 import android.text.Editable
 import android.text.Spanned
 import android.text.TextWatcher
-import android.text.method.ArrowKeyMovementMethod
 import android.text.style.BackgroundColorSpan
 import android.view.*
 import android.view.inputmethod.EditorInfo
@@ -30,8 +27,8 @@ import com.google.android.gms.tasks.Task
 import com.google.android.gms.tasks.TaskCompletionSource
 import com.google.android.gms.tasks.Tasks
 import com.google.api.services.drive.DriveScopes
-import kotlinx.android.synthetic.main.activity_content.*
 import me.odedniv.osafe.R
+import me.odedniv.osafe.databinding.ActivityContentBinding
 import me.odedniv.osafe.dialogs.GeneratePassphraseDialog
 import me.odedniv.osafe.extensions.logFailure
 import me.odedniv.osafe.models.Encryption
@@ -42,6 +39,7 @@ import me.odedniv.osafe.services.EncryptionStorageService
 import java.util.*
 import java.util.regex.Pattern
 
+@Suppress("PrivatePropertyName") // TODO: Migrate to new names.
 class ContentActivity : BaseActivity(), GeneratePassphraseDialog.Listener {
     companion object {
         private const val REQUEST_GOOGLE_SIGN_IN = 1
@@ -49,6 +47,16 @@ class ContentActivity : BaseActivity(), GeneratePassphraseDialog.Listener {
 
         private val WORD_SEPARATOR_PATTERN = Pattern.compile("\\W")
     }
+
+    private lateinit var binding: ActivityContentBinding
+    // TODO: Migrate to new names.
+    private val toolbar_content get() = binding.toolbarContent
+    private val edit_content get() = binding.editContent
+    private val autocomplete_search get() = binding.autocompleteSearch
+    private val button_insert_passphrase get() = binding.buttonInsertPassphrase
+    private val button_toggle_input get() = binding.buttonToggleInput
+    private val scroll_content get() = binding.scrollContent
+    private val progress_spinner get() = binding.progressSpinner
 
     private val storage = Storage(this)
     private var started = false
@@ -68,7 +76,8 @@ class ContentActivity : BaseActivity(), GeneratePassphraseDialog.Listener {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
-        setContentView(R.layout.activity_content)
+        binding = ActivityContentBinding.inflate(layoutInflater)
+        setContentView(binding.root)
         setSupportActionBar(toolbar_content)
 
         imm = getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager
@@ -117,10 +126,10 @@ class ContentActivity : BaseActivity(), GeneratePassphraseDialog.Listener {
         autocomplete_search.setOnItemClickListener { _, _, _, _ ->
             imm!!.hideSoftInputFromWindow(autocomplete_search.windowToken, 0)
         }
-        (button_insert_passphrase as FloatingActionButton).setOnClickListener {
+        button_insert_passphrase.setOnClickListener {
             GeneratePassphraseDialog().show(supportFragmentManager, "GeneratePassphraseDialog")
         }
-        (button_toggle_input as FloatingActionButton).setOnClickListener {
+        button_toggle_input.setOnClickListener {
             setContentEditable(!contentEditable)
         }
         setContentEditable(false)
@@ -131,7 +140,7 @@ class ContentActivity : BaseActivity(), GeneratePassphraseDialog.Listener {
         return true
     }
 
-    override fun onOptionsItemSelected(item: MenuItem?) = when(item!!.itemId) {
+    override fun onOptionsItemSelected(item: MenuItem) = when(item.itemId) {
         R.id.action_change_passphrase -> {
             startActivityForResult(
                     Intent(this, NewPassphraseActivity::class.java)
@@ -257,24 +266,7 @@ class ContentActivity : BaseActivity(), GeneratePassphraseDialog.Listener {
     private fun setContentEditable(value: Boolean) {
         contentEditable = value
         // enabling/disabling input on touch
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) { // API 21
-            edit_content.showSoftInputOnFocus = value
-        } else { // API 11-20
-            if (!value) {
-                edit_content.setTextIsSelectable(true)
-            } else {
-                val selectionStart = edit_content.selectionStart
-                val selectionEnd = edit_content.selectionEnd
-                edit_content.setTextIsSelectable(false)
-                edit_content.isFocusable = true
-                edit_content.isFocusableInTouchMode = true
-                edit_content.isClickable = true
-                edit_content.isLongClickable = true
-                edit_content.movementMethod = ArrowKeyMovementMethod.getInstance()
-                edit_content.setText(edit_content.text, TextView.BufferType.SPANNABLE)
-                edit_content.setSelection(selectionStart, selectionEnd)
-            }
-        }
+        edit_content.showSoftInputOnFocus = value
         // showing/hiding input now
         if (value) {
             if (edit_content.requestFocus()) {

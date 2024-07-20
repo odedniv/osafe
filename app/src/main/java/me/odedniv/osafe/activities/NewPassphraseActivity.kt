@@ -6,19 +6,30 @@ import android.os.Bundle
 import android.text.Editable
 import android.text.TextWatcher
 import android.view.inputmethod.EditorInfo
-import kotlinx.android.synthetic.main.activity_new_passphrase.*
+import me.odedniv.osafe.databinding.ActivityNewPassphraseBinding
 import me.odedniv.osafe.models.Encryption
 import me.odedniv.osafe.R
 import me.odedniv.osafe.dialogs.GeneratePassphraseDialog
 import android.view.inputmethod.InputMethodManager
+import android.widget.LinearLayout
 import com.google.android.gms.tasks.Tasks
 import me.odedniv.osafe.models.Storage
 import me.odedniv.osafe.models.encryption.Message
 
+@Suppress("PrivatePropertyName") // TODO: Migrate to new names.
 class NewPassphraseActivity : BaseActivity(), GeneratePassphraseDialog.Listener {
+    private lateinit var binding: ActivityNewPassphraseBinding
+    // TODO: Migrate to new names.
+    private val edit_passphrase get() = binding.editPassphrase
+    private val edit_passphrase_confirm get() = binding.editPassphraseConfirm
+    private val button_generate get() = binding.buttonGenerate
+    private val button_save get() = binding.buttonSave
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_new_passphrase)
+        val root = LinearLayout(this) // Otherwise content is not vertically centered.
+        binding = ActivityNewPassphraseBinding.inflate(layoutInflater, root, true)
+        setContentView(root)
 
         val textWatcher = object : TextWatcher {
             override fun afterTextChanged(s: Editable?) {
@@ -41,7 +52,7 @@ class NewPassphraseActivity : BaseActivity(), GeneratePassphraseDialog.Listener 
         button_save.setOnClickListener { save() }
     }
 
-    override fun onRestoreInstanceState(savedInstanceState: Bundle?) {
+    override fun onRestoreInstanceState(savedInstanceState: Bundle) {
         super.onRestoreInstanceState(savedInstanceState)
         updateSaveEnabledState()
     }
@@ -73,7 +84,7 @@ class NewPassphraseActivity : BaseActivity(), GeneratePassphraseDialog.Listener 
 
         // changing key on for existing encryption
         val storage = Storage(this)
-        storage.state = intent.getParcelableExtra(EXTRA_STORAGE)
+        storage.state = intent.getParcelableExtra(EXTRA_STORAGE)!!
         storage.get()
                 .onSuccessTask { oldMessage ->
                     oldMessage ?: return@onSuccessTask Tasks.forCanceled<Message>()

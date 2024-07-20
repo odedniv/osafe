@@ -83,6 +83,6 @@ class EncryptionStorageService : Service() {
                 0,
                 Intent(this@EncryptionStorageService, EncryptionStorageService::class.java)
                         .putExtra(EXTRA_EXPIRE, true),
-                PendingIntent.FLAG_CANCEL_CURRENT
+                PendingIntent.FLAG_CANCEL_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 }

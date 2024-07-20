@@ -6,13 +6,15 @@ import android.os.Bundle
 import android.text.Editable
 import android.text.TextWatcher
 import android.view.inputmethod.EditorInfo
+import android.widget.LinearLayout
 import android.widget.SeekBar
-import kotlinx.android.synthetic.main.activity_existing_passphrase.*
+import me.odedniv.osafe.databinding.ActivityExistingPassphraseBinding
 import me.odedniv.osafe.models.Encryption
 import me.odedniv.osafe.R
 import me.odedniv.osafe.extensions.PREF_ENCRYPTION_TIMEOUT
 import me.odedniv.osafe.extensions.preferences
 
+@Suppress("PrivatePropertyName") // TODO: Migrate to new names.
 class ExistingPassphraseActivity : BaseActivity() {
     companion object {
         private data class EncryptionTimeout(val timeout: Long, val id: Int)
@@ -29,9 +31,18 @@ class ExistingPassphraseActivity : BaseActivity() {
         )
     }
 
+    private lateinit var binding: ActivityExistingPassphraseBinding
+    // TODO: Migrate to new names.
+    private val seek_encryption_timeout get() = binding.seekEncryptionTimeout
+    private val edit_passphrase get() = binding.editPassphrase
+    private val button_submit get() = binding.buttonSubmit
+    private val text_encryption_timeout get() = binding.textEncryptionTimeout
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_existing_passphrase)
+        val root = LinearLayout(this) // Otherwise content is not vertically centered.
+        binding = ActivityExistingPassphraseBinding.inflate(layoutInflater, root, true)
+        setContentView(root)
 
         seek_encryption_timeout.max = ENCRYPTION_TIMEOUTS.size - 1
 
@@ -78,7 +89,7 @@ class ExistingPassphraseActivity : BaseActivity() {
         updateEncryptionTimeoutText()
     }
 
-    override fun onRestoreInstanceState(savedInstanceState: Bundle?) {
+    override fun onRestoreInstanceState(savedInstanceState: Bundle) {
         super.onRestoreInstanceState(savedInstanceState)
         updateSubmitEnabledState()
         updateEncryptionTimeoutText()

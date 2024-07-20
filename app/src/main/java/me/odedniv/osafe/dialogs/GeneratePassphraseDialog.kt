@@ -4,9 +4,9 @@ import android.app.AlertDialog
 import android.app.Dialog
 import android.content.Context
 import android.os.Bundle
-import android.support.v7.app.AppCompatDialogFragment
 import android.view.View
 import android.widget.*
+import androidx.appcompat.app.AppCompatDialogFragment
 import me.odedniv.osafe.R
 import me.odedniv.osafe.extensions.*
 import me.odedniv.osafe.models.PassphraseRule
@@ -29,7 +29,7 @@ class GeneratePassphraseDialog : AppCompatDialogFragment() {
     }
 
     private var listener: Listener? = null
-    override fun onAttach(context: Context?) {
+    override fun onAttach(context: Context) {
         super.onAttach(context)
         listener = context as Listener
     }
@@ -43,7 +43,7 @@ class GeneratePassphraseDialog : AppCompatDialogFragment() {
     private var buttonRegeneratePassphrase: Button? = null
 
     override fun onCreateDialog(savedInstanceState: Bundle?): Dialog {
-        val layout = activity!!.layoutInflater.inflate(R.layout.dialog_generate_passphrase, null)
+        val layout = requireActivity().layoutInflater.inflate(R.layout.dialog_generate_passphrase, null)
         spinnerPassphraseType = layout.findViewById(R.id.spinner_passphrase_type)
         seekPassphraseLength = layout.findViewById(R.id.seek_passphrase_length)
         textPassphraseLength = layout.findViewById(R.id.text_passphrase_length)
@@ -79,13 +79,13 @@ class GeneratePassphraseDialog : AppCompatDialogFragment() {
     }
 
     private fun setDefaults() {
-        checkPassphraseRuleThreeSymbolTypes!!.isChecked = context!!.preferences.getBoolean(PREF_GENERATE_RULE_THREE_SYMBOL_TYPES, false)
-        checkPassphraseRuleNotConsecutive!!.isChecked = context!!.preferences.getBoolean(PREF_GENERATE_RULE_NOT_CONSECUTIVE, false)
+        checkPassphraseRuleThreeSymbolTypes!!.isChecked = requireContext().preferences.getBoolean(PREF_GENERATE_RULE_THREE_SYMBOL_TYPES, false)
+        checkPassphraseRuleNotConsecutive!!.isChecked = requireContext().preferences.getBoolean(PREF_GENERATE_RULE_NOT_CONSECUTIVE, false)
         try {
             spinnerPassphraseType!!.setSelection(
                     PASSPHRASE_TYPES.indexOf(
                             PassphraseType.valueOf(
-                                    context!!.preferences.getString(
+                                    requireContext().preferences.getString(
                                             PREF_GENERATE_TYPE,
                                             PASSPHRASE_TYPES[spinnerPassphraseType!!.selectedItemPosition].toString()
                                     )!!
@@ -98,7 +98,7 @@ class GeneratePassphraseDialog : AppCompatDialogFragment() {
             return
         }
         setPassphraseLengthDefaults()
-        seekPassphraseLength!!.progress = context!!.preferences.getInt(PREF_GENERATE_LENGTH, seekPassphraseLength!!.progress + 1) - 1
+        seekPassphraseLength!!.progress = requireContext().preferences.getInt(PREF_GENERATE_LENGTH, seekPassphraseLength!!.progress + 1) - 1
         textPassphraseLength!!.text = (seekPassphraseLength!!.progress + 1).toString()
     }
 
@@ -141,13 +141,13 @@ class GeneratePassphraseDialog : AppCompatDialogFragment() {
             override fun onStopTrackingTouch(seekBar: SeekBar?) { }
         })
         checkPassphraseRuleThreeSymbolTypes!!.setOnCheckedChangeListener { _, isChecked ->
-            context!!.preferences.edit()
+            requireContext().preferences.edit()
                     .putBoolean(PREF_GENERATE_RULE_THREE_SYMBOL_TYPES, isChecked)
                     .apply()
             regeneratePassphrase()
         }
         checkPassphraseRuleNotConsecutive!!.setOnCheckedChangeListener { _, isChecked ->
-            context!!.preferences.edit()
+            requireContext().preferences.edit()
                     .putBoolean(PREF_GENERATE_RULE_NOT_CONSECUTIVE, isChecked)
                     .apply()
             regeneratePassphrase()
