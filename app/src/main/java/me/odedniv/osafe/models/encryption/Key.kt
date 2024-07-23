@@ -4,6 +4,7 @@ import android.os.Parcel
 import android.os.Parcelable
 import java.security.MessageDigest
 import java.time.Instant
+import java.time.temporal.ChronoUnit
 import kotlinx.parcelize.Parceler
 import kotlinx.parcelize.Parcelize
 import kotlinx.parcelize.WriteWith
@@ -33,7 +34,8 @@ data class Key(val label: @WriteWith<LabelParceler>() Label, val content: Conten
       }
     }
 
-    data class Biometric(val createdAt: Instant) : Label {
+    data class Biometric(val createdAt: Instant = Instant.now().truncatedTo(ChronoUnit.SECONDS)) :
+      Label {
       override fun toString() = "BIOMETRIC/$createdAt"
     }
 

@@ -1,60 +1,39 @@
 package me.odedniv.osafe.models.storage
 
 import android.content.Context
-import android.os.AsyncTask
-import com.google.android.gms.tasks.Task
-import com.google.android.gms.tasks.Tasks
+import java.io.File
 import java.io.FileNotFoundException
-import java.util.concurrent.Callable
+import java.time.Instant
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import me.odedniv.osafe.models.storage.StorageFormat.Content
 
 class FileStorageFormat(private val context: Context) : StorageFormat {
-  override val stringId: Int
-    get() = 0
+  override suspend fun read(): Content? =
+    withContext(DISPATCHER) {
+      try {
+        Content(
+          context.openFileInput(StorageFormat.FILENAME).use { it.readBytes() },
+          Instant.ofEpochMilli(file.lastModified()),
+        )
+      } catch (e: FileNotFoundException) {
+        null
+      }
+    }
 
-  override fun exists(): Task<Boolean> {
-    return Tasks.call(
-      AsyncTask.THREAD_POOL_EXECUTOR,
-      Callable<Boolean> {
-        val file = context.getFileStreamPath(StorageFormat.FILENAME)
-        file != null && file.exists()
-      },
-    )
+  override suspend fun write(content: Content) {
+    withContext(DISPATCHER) {
+      context.openFileOutput(StorageFormat.FILENAME, Context.MODE_PRIVATE).use {
+        it.write(content.bytes)
+      }
+      file.setLastModified(content.modifiedTime.toEpochMilli())
+    }
   }
 
-  override fun conflicts(): Task<Boolean> {
-    return Tasks.forResult(false)
-  }
+  private val file: File
+    get() = File(context.filesDir, StorageFormat.FILENAME)
 
-  override fun read(): Task<ByteArray?> {
-    return Tasks.call(
-      AsyncTask.THREAD_POOL_EXECUTOR,
-      Callable {
-        try {
-          context.openFileInput(StorageFormat.FILENAME).use {
-            return@Callable it.readBytes()
-          }
-        } catch (e: FileNotFoundException) {
-          return@Callable null
-        }
-      },
-    )
-  }
-
-  override fun write(content: ByteArray): Task<Unit> {
-    return Tasks.call(
-      AsyncTask.THREAD_POOL_EXECUTOR,
-      Callable<Unit> {
-        context.openFileOutput(StorageFormat.FILENAME, Context.MODE_PRIVATE).use {
-          it.write(content)
-        }
-      },
-    )
-  }
-
-  override fun clear(): Task<Unit> {
-    return Tasks.call(
-      AsyncTask.THREAD_POOL_EXECUTOR,
-      Callable<Unit> { context.deleteFile(StorageFormat.FILENAME) },
-    )
+  companion object {
+    private val DISPATCHER = Dispatchers.IO
   }
 }

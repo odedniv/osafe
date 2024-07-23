@@ -1,21 +1,15 @@
 package me.odedniv.osafe.models.storage
 
-import com.google.android.gms.tasks.Task
+import java.time.Instant
 
 interface StorageFormat {
   companion object {
     const val FILENAME = "osafe.json"
   }
 
-  val stringId: Int
+  class Content(val bytes: ByteArray, val modifiedTime: Instant)
 
-  fun exists(): Task<Boolean>
+  suspend fun read(): Content?
 
-  fun conflicts(): Task<Boolean>
-
-  fun read(): Task<ByteArray?>
-
-  fun write(content: ByteArray): Task<Unit>
-
-  fun clear(): Task<Unit>
+  suspend fun write(content: Content)
 }

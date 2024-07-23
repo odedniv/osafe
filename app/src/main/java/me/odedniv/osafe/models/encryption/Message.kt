@@ -11,54 +11,146 @@ import com.google.gson.JsonPrimitive
 import com.google.gson.JsonSerializationContext
 import com.google.gson.JsonSerializer
 import java.lang.reflect.Type
+import java.time.Duration
+import javax.crypto.Cipher
+import kotlin.time.toKotlinDuration
+import kotlinx.coroutines.delay
 import kotlinx.parcelize.Parcelize
+import me.odedniv.osafe.models.random
 
 @Parcelize
 class Message(val keys: Array<Key>, val content: Content) : Parcelable {
-  companion object {
-    val GSON: Gson =
-      GsonBuilder()
-        .disableHtmlEscaping()
-        .registerTypeAdapter(
-          ByteArray::class.java,
-          object : JsonSerializer<ByteArray>, JsonDeserializer<ByteArray> {
-            override fun serialize(
-              src: ByteArray?,
-              typeOfSrc: Type?,
-              context: JsonSerializationContext?,
-            ): JsonElement = JsonPrimitive(Base64.encodeToString(src!!, Base64.NO_WRAP))
-
-            override fun deserialize(
-              json: JsonElement?,
-              typeOfT: Type?,
-              context: JsonDeserializationContext?,
-            ): ByteArray = Base64.decode(json!!.asString, Base64.NO_WRAP)
-          },
-        )
-        .registerTypeAdapter(
-          Key.Label::class.java,
-          object : JsonSerializer<Key.Label>, JsonDeserializer<Key.Label> {
-            override fun serialize(
-              src: Key.Label?,
-              typeOfSrc: Type?,
-              context: JsonSerializationContext?,
-            ): JsonElement = JsonPrimitive(src!!.toString())
-
-            override fun deserialize(
-              json: JsonElement?,
-              typeOfT: Type?,
-              context: JsonDeserializationContext?,
-            ) = Key.Label.fromString(json!!.asString)
-          },
-        )
-        .create()
-
-    fun decode(encoded: ByteArray): Message {
-      return GSON.fromJson(encoded.toString(Charsets.UTF_8), Message::class.java)
-    }
+  suspend fun decrypt(key: Key, cipher: Cipher): DecryptedMessage? {
+    val baseKey: ByteArray = key.content.decrypt(cipher) ?: return null
+    val decryptedContent: String =
+      requireNotNull(content.decrypt(content.decryptCipher(baseKey))) { "Base key does not match." }
+        .toString(Charsets.UTF_8)
+    return DecryptedMessage(message = this, baseKey = baseKey, content = decryptedContent)
   }
 
   fun encode(): ByteArray {
     return GSON.toJson(this).toByteArray(Charsets.UTF_8)
   }
+
+  fun copy(keys: Array<Key> = this.keys, content: Content = this.content) =
+    Message(keys = keys, content = content)
+
+  companion object {
+    fun decode(encoded: ByteArray): Message {
+      return GSON.fromJson(encoded.toString(Charsets.UTF_8), Message::class.java)
+    }
+  }
 }
+
+@Parcelize
+class DecryptedMessage(val message: Message, private val baseKey: ByteArray, val content: String) :
+  Parcelable {
+
+  suspend fun updateContent(content: String) =
+    copy(
+      original =
+        message.copy(
+          content =
+            Content.encrypt(Content.encryptCipher(baseKey), content.toByteArray(Charsets.UTF_8))
+        ),
+      content = content,
+    )
+
+  suspend fun changePassphrase(passphrase: String): DecryptedMessage {
+    val keyLabel = Key.Label.Passphrase()
+    return copy(
+      original =
+        message.copy(
+          keys =
+            (message.keys.filter { it.label !is Key.Label.Passphrase } +
+                Key(
+                  label = keyLabel,
+                  content =
+                    Content.encrypt(Content.encryptCipher(keyLabel.digest(passphrase)), baseKey),
+                ))
+              .toTypedArray()
+        )
+    )
+  }
+
+  suspend fun addKey(keyLabel: Key.Label, cipher: Cipher): Pair<DecryptedMessage, Key> {
+    val key = Key(label = keyLabel, content = Content.encrypt(cipher, baseKey))
+    return copy(original = message.copy(keys = message.keys + key)) to key
+  }
+
+  fun removeKeys(keys: Set<Key>) =
+    copy(original = message.copy(keys = (message.keys.toSet() - keys).toTypedArray()))
+
+  suspend fun remember(timeout: Duration) {
+    instance = this
+    delay(timeout.toKotlinDuration())
+    instance = null
+  }
+
+  private fun copy(original: Message = this.message, content: String = this.content) =
+    DecryptedMessage(message = original, baseKey = baseKey, content = content)
+
+  companion object {
+    var instance: DecryptedMessage? = null
+      private set
+
+    suspend fun create(passphrase: String): DecryptedMessage {
+      val baseKey = random(64)
+      val keyLabel = Key.Label.Passphrase()
+      return DecryptedMessage(
+        message =
+          Message(
+            keys =
+              arrayOf(
+                Key(
+                  label = keyLabel,
+                  content =
+                    Content.encrypt(Content.encryptCipher(keyLabel.digest(passphrase)), baseKey),
+                )
+              ),
+            content =
+              Content.encrypt(Content.encryptCipher(baseKey), "".toByteArray(Charsets.UTF_8)),
+          ),
+        baseKey = baseKey,
+        content = "",
+      )
+    }
+  }
+}
+
+private val GSON: Gson =
+  GsonBuilder()
+    .disableHtmlEscaping()
+    .registerTypeAdapter(
+      ByteArray::class.java,
+      object : JsonSerializer<ByteArray>, JsonDeserializer<ByteArray> {
+        override fun serialize(
+          src: ByteArray?,
+          typeOfSrc: Type?,
+          context: JsonSerializationContext?,
+        ): JsonElement = JsonPrimitive(Base64.encodeToString(src!!, Base64.NO_WRAP))
+
+        override fun deserialize(
+          json: JsonElement?,
+          typeOfT: Type?,
+          context: JsonDeserializationContext?,
+        ): ByteArray = Base64.decode(json!!.asString, Base64.NO_WRAP)
+      },
+    )
+    .registerTypeAdapter(
+      Key.Label::class.java,
+      object : JsonSerializer<Key.Label>, JsonDeserializer<Key.Label> {
+        override fun serialize(
+          src: Key.Label?,
+          typeOfSrc: Type?,
+          context: JsonSerializationContext?,
+        ): JsonElement = JsonPrimitive(src!!.toString())
+
+        override fun deserialize(
+          json: JsonElement?,
+          typeOfT: Type?,
+          context: JsonDeserializationContext?,
+        ) = Key.Label.fromString(json!!.asString)
+      },
+    )
+    .create()

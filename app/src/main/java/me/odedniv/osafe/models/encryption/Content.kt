@@ -9,12 +9,14 @@ import java.security.KeyStoreException
 import java.security.MessageDigest
 import java.security.NoSuchAlgorithmException
 import java.security.UnrecoverableKeyException
-import java.util.Arrays
+import java.util.Objects
 import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
 import javax.crypto.spec.IvParameterSpec
 import javax.crypto.spec.SecretKeySpec
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.parcelize.Parcelize
 
 @Parcelize
@@ -52,8 +54,12 @@ data class Content(
   }
 
   companion object {
-    val DEFAULT_CIPHER_TYPE = CipherType.AES_128
-    val DEFAULT_DIGEST_TYPE = DigestType.SHA_1
+    private val DEFAULT_CIPHER_TYPE = CipherType.AES_128
+    private val DEFAULT_DIGEST_TYPE = DigestType.SHA_1
+    private val DISPATCHER = Dispatchers.Default
+
+    private suspend fun Cipher.dispatchDoFinal(input: ByteArray): ByteArray =
+      withContext(DISPATCHER) { doFinal(input) }
 
     fun encryptCipher(key: ByteArray): Cipher {
       val cipher = Cipher.getInstance(DEFAULT_CIPHER_TYPE.transformation)
@@ -70,15 +76,14 @@ data class Content(
       return cipher
     }
 
-    fun encrypt(cipher: Cipher, content: ByteArray): Content {
-      return Content(
+    suspend fun encrypt(cipher: Cipher, content: ByteArray): Content =
+      Content(
         cipherType = DEFAULT_CIPHER_TYPE,
         digestType = DEFAULT_DIGEST_TYPE,
         iv = cipher.iv,
         digest = MessageDigest.getInstance(DEFAULT_DIGEST_TYPE.algorithm).digest(content),
-        content = cipher.doFinal(content),
+        content = cipher.dispatchDoFinal(content),
       )
-    }
 
     private fun generateBiometricSecretKey(): SecretKey {
       val keyGenerator = KeyGenerator.getInstance(DEFAULT_CIPHER_TYPE.algorithm, "AndroidKeyStore")
@@ -133,39 +138,34 @@ data class Content(
     return cipher
   }
 
-  fun decrypt(cipher: Cipher): ByteArray? {
-    val content = try {
-      cipher.doFinal(content)
-    } catch (e: GeneralSecurityException) {
-      return null
-    }
+  suspend fun decrypt(cipher: Cipher): ByteArray? {
+    val content =
+      try {
+        cipher.dispatchDoFinal(content)
+      } catch (e: GeneralSecurityException) {
+        return null
+      }
     if (!digest.contentEquals(MessageDigest.getInstance(digestType.algorithm).digest(content))) {
       return null
     }
     return content
   }
 
-  override fun equals(other: Any?): Boolean {
-    if (this === other) return true
-    if (javaClass != other?.javaClass) return false
+  override fun equals(other: Any?): Boolean =
+    super.equals(other) ||
+      (other is Content &&
+        cipherType == other.cipherType &&
+        digestType == other.digestType &&
+        iv contentEquals other.iv &&
+        digest contentEquals other.digest &&
+        content contentEquals other.content)
 
-    other as Content
-
-    if (cipherType != other.cipherType) return false
-    if (digestType != other.digestType) return false
-    if (!Arrays.equals(iv, other.iv)) return false
-    if (!Arrays.equals(digest, other.digest)) return false
-    if (!Arrays.equals(content, other.content)) return false
-
-    return true
-  }
-
-  override fun hashCode(): Int {
-    var result = cipherType.hashCode()
-    result = 31 * result + digestType.hashCode()
-    result = 31 * result + Arrays.hashCode(iv)
-    result = 31 * result + Arrays.hashCode(digest)
-    result = 31 * result + Arrays.hashCode(content)
-    return result
-  }
+  override fun hashCode(): Int =
+    Objects.hash(
+      cipherType,
+      digestType,
+      iv.contentHashCode(),
+      digest.contentHashCode(),
+      content.contentHashCode(),
+    )
 }

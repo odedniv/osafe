@@ -1,149 +1,84 @@
 package me.odedniv.osafe.models
 
 import android.content.Context
-import android.os.Parcel
-import android.os.Parcelable
+import android.util.Log
 import com.google.android.gms.auth.api.signin.GoogleSignInAccount
-import com.google.android.gms.tasks.Task
-import com.google.android.gms.tasks.TaskCompletionSource
-import com.google.android.gms.tasks.Tasks
-import me.odedniv.osafe.extensions.toResult
+import java.time.Instant
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.merge
+import kotlinx.coroutines.flow.runningReduce
+import kotlinx.coroutines.launch
 import me.odedniv.osafe.models.encryption.Message
 import me.odedniv.osafe.models.storage.DriveStorageFormat
 import me.odedniv.osafe.models.storage.FileStorageFormat
 import me.odedniv.osafe.models.storage.StorageFormat
+import me.odedniv.osafe.models.storage.StorageFormat.Content
 
-class Storage(private val context: Context) {
+class Storage(context: Context, googleSignInAccount: GoogleSignInAccount) {
+  private val formats =
+    listOf<StorageFormat>(
+      FileStorageFormat(context),
+      DriveStorageFormat(context, googleSignInAccount),
+    )
 
-  class State constructor() : Parcelable {
-    var googleSignInAccount: GoogleSignInAccount? = null
-
-    private constructor(parcel: Parcel) : this() {
-      googleSignInAccount = parcel.readParcelable(GoogleSignInAccount::class.java.classLoader)
-    }
-
-    override fun writeToParcel(parcel: Parcel, flags: Int) {
-      parcel.writeParcelable(googleSignInAccount, 0)
-    }
-
-    override fun describeContents(): Int {
-      return 0
-    }
-
-    companion object CREATOR : Parcelable.Creator<State> {
-      override fun createFromParcel(parcel: Parcel): State {
-        return State(parcel)
+  fun read(): Flow<Message> =
+    // List<StorageFormat>
+    formats
+      // List<Flow<Pair<StorageFormat, Content>>>
+      .map { format ->
+        flow<Pair<StorageFormat, Content>> { format.readAndLog()?.let { emit(format to it) } }
       }
-
-      override fun newArray(size: Int): Array<State?> {
-        return arrayOfNulls(size)
-      }
-    }
-  }
-
-  private var _state: State = State()
-  var state: State
-    get() = _state
-    set(value) {
-      _state = value
-      setGoogleSignInAccount(_state.googleSignInAccount)
-    }
-
-  private val storageFormats = ArrayList<StorageFormat>()
-
-  init {
-    storageFormats.add(FileStorageFormat(context))
-  }
-
-  fun setGoogleSignInAccount(googleSignInAccount: GoogleSignInAccount?) {
-    state.googleSignInAccount = googleSignInAccount
-    storageFormats.removeAll { it is DriveStorageFormat }
-    if (googleSignInAccount != null) {
-      storageFormats.add(DriveStorageFormat(context, googleSignInAccount))
-    }
-  }
-
-  val exists: Task<Boolean>
-    get() {
-      val taskCompletionSource = TaskCompletionSource<Boolean>()
-
-      Tasks.whenAll(
-          storageFormats.map { storageFormat ->
-            storageFormat.exists().addOnSuccessListener { exists ->
-              // sets first true
-              if (exists) taskCompletionSource.trySetResult(true)
-            }
-          }
-        )
-        .addOnSuccessListener {
-          // sets false if finished and no true
-          taskCompletionSource.trySetResult(false)
-        }
-        .addOnFailureListener { taskCompletionSource.trySetException(it) }
-
-      return taskCompletionSource.task
-    }
-
-  val conflicts: Task<List<StorageFormat>>
-    get() {
-      val tasks = storageFormats.associateBy({ it }, { it.conflicts() })
-      return Tasks.whenAll(tasks.values).onSuccessTask {
-        Tasks.forResult(storageFormats.filter { tasks[it]!!.result!! })
-      }
-    }
-
-  fun resolveConflictWith(storageFormat: StorageFormat): Task<Unit> {
-    return storageFormat
-      .read()
-      .onSuccessTask { content ->
-        Tasks.whenAll(storageFormats.filter { it !== storageFormat }.map { it.write(content!!) })
-      }
-      .toResult(Unit)
-  }
-
-  fun get() = get {}
-
-  fun get(receiver: (message: Message?) -> Unit): Task<Message?> {
-    // prefer the last storage format (in the list of storage formats)
-    var lastStorageFormatIndex: Int = -1
-    var lastContent: ByteArray? = null
-    var lastMessage: Message? = null
-    val allContents = HashMap<StorageFormat, ByteArray>()
-    return Tasks.whenAll(
-        storageFormats.mapIndexed { index, storageFormat ->
-          storageFormat.read().addOnSuccessListener { content ->
-            if (content == null) return@addOnSuccessListener
-            allContents[storageFormat] = content
-            if (lastStorageFormatIndex < index) {
-              lastStorageFormatIndex = index
-              lastContent = content
-            }
-            if (lastStorageFormatIndex == index) {
-              lastMessage = Message.decode(content)
-              receiver(lastMessage)
+      // Flow<Pair<StorageFormat, Content>>
+      .merge()
+      // Update all outdated formats, prioritizing newest.
+      .onAll { all ->
+        val sorted = all.sortedBy { (_, content) -> content.modifiedTime }
+        val (newestFormat: StorageFormat, newestContent: Content) =
+          sorted.lastOrNull() ?: return@onAll
+        val map: Map<StorageFormat, Content> = all.toMap()
+        coroutineScope {
+          for (format in formats) {
+            if (format != newestFormat && !map[format]?.bytes.contentEquals(newestContent.bytes)) {
+              launch { format.writeAndLog(newestContent) }
             }
           }
         }
-      )
-      .onSuccessTask {
-        if (lastContent == null) return@onSuccessTask Tasks.forResult(lastMessage)
-        Tasks.whenAll(
-            storageFormats
-              .filter {
-                !allContents.containsKey(it) || !lastContent!!.contentEquals(allContents[it]!!)
-              }
-              .map { storageFormat -> storageFormat.write(lastContent!!) }
-          )
-          .toResult(lastMessage)
       }
+      // Flow<Content>
+      .map { (_, content) -> content }
+      // Prioritizing newest content, skipping older ones.
+      .runningReduce { newestContent, currentContent ->
+        if (newestContent.modifiedTime > currentContent.modifiedTime) newestContent
+        else currentContent
+      }
+      // Flow<Content> (newest)
+      .distinctUntilChanged { old, new -> old.bytes contentEquals new.bytes }
+      // Flow<Message>
+      .map { Message.decode(it.bytes) }
+
+  suspend fun write(message: Message): Unit = coroutineScope {
+    val content = Content(message.encode(), Instant.now())
+    for (format in formats) {
+      launch { format.writeAndLog(content) }
+    }
   }
 
-  fun set(message: Message): Task<Unit> {
-    val content = message.encode()
-    return Tasks.whenAll(storageFormats.map { it.write(content) }).toResult(Unit)
+  private suspend fun StorageFormat.readAndLog(): Content? {
+    Log.d(TAG, "$this.read() start")
+    return read().also { Log.d(TAG, "$this.read() end") }
   }
 
-  fun reset(): Task<Unit> {
-    return Tasks.whenAll(storageFormats.map { it.clear() }).toResult(Unit)
+  private suspend fun StorageFormat.writeAndLog(content: Content) {
+    Log.d(TAG, "$this.write() start")
+    write(content)
+    Log.d(TAG, "$this.write() end")
+  }
+
+  companion object {
+    private const val TAG = "Storage"
   }
 }

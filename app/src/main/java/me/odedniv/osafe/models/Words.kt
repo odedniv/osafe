@@ -1,5 +1,6 @@
 package me.odedniv.osafe.models
 
+@Suppress("SpellcheckingInspection")
 internal val WORDS =
   arrayOf(
     "aardvark",
