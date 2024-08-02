@@ -14,8 +14,8 @@ android {
         applicationId 'me.odedniv.osafe'
         minSdk 26
         targetSdk 34
-        versionCode 10
-        versionName "0.2.8"
+        versionCode 13
+        versionName "1.0.0"
 
         vectorDrawables {
             useSupportLibrary true
@@ -24,7 +24,7 @@ android {
 
     buildTypes {
         release {
-            minifyEnabled false
+            minifyEnabled true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
