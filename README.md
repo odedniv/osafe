@@ -19,12 +19,9 @@ with as little clicks as possible, backed up and accessible from anywhere.
 OSafe is a single document where you can write your secrets however you like,
 and copy them the Android way. No complex buttons or anything.
 
-Don't trust me? You shouldn't! Check the sources on.
+Don't trust me? You shouldn't! Check the source code.
 
-Still don't trust that the Play Store version has the same code? Build it yourself with Android Studio.
-
-There's also a Python version
-if you want to update your secrets from your computer - https://github.com/osafe/osafe-python.
+Still don't trust that the Play Store version has the same code? Build it yourself!
 
 ## Contributing
 
