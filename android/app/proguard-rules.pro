@@ -1,6 +1,6 @@
 -keep class me.odedniv.osafe.** { *; }
 -keep class * extends com.google.api.client.json.GenericJson { *; }
--keep class com.google.api.services.drive.** { *; }
+-keep class com.google.api.** { *; }
 
 -dontwarn javax.naming.InvalidNameException
 -dontwarn javax.naming.NamingException
