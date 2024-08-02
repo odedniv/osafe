@@ -12,6 +12,7 @@ import com.google.gson.JsonSerializationContext
 import com.google.gson.JsonSerializer
 import java.lang.reflect.Type
 import java.time.Duration
+import java.util.Objects
 import javax.crypto.Cipher
 import kotlin.time.toKotlinDuration
 import kotlinx.coroutines.delay
@@ -19,7 +20,12 @@ import kotlinx.parcelize.Parcelize
 import me.odedniv.osafe.models.random
 
 @Parcelize
-class Message(val keys: Array<Key>, val content: Content) : Parcelable {
+data class Message(val keys: Array<Key>, val content: Content) : Parcelable {
+  override fun equals(other: Any?) =
+    other is Message && keys contentEquals other.keys && content == other.content
+
+  override fun hashCode() = Objects.hash(keys, content)
+
   suspend fun decrypt(key: Key, cipher: Cipher): DecryptedMessage? {
     val baseKey: ByteArray = key.content.decrypt(cipher) ?: return null
     val decryptedContent: String =
@@ -28,12 +34,11 @@ class Message(val keys: Array<Key>, val content: Content) : Parcelable {
     return DecryptedMessage(message = this, baseKey = baseKey, content = decryptedContent)
   }
 
+  fun removeKeys(keys: Set<Key>) = copy(keys = (keys.toSet() - keys).toTypedArray())
+
   fun encode(): ByteArray {
     return GSON.toJson(this).toByteArray(Charsets.UTF_8)
   }
-
-  fun copy(keys: Array<Key> = this.keys, content: Content = this.content) =
-    Message(keys = keys, content = content)
 
   companion object {
     fun decode(encoded: ByteArray): Message {
@@ -43,12 +48,22 @@ class Message(val keys: Array<Key>, val content: Content) : Parcelable {
 }
 
 @Parcelize
-class DecryptedMessage(val message: Message, private val baseKey: ByteArray, val content: String) :
-  Parcelable {
+data class DecryptedMessage(
+  val message: Message,
+  private val baseKey: ByteArray,
+  val content: String,
+) : Parcelable {
+  override fun equals(other: Any?) =
+    other is DecryptedMessage &&
+      message == other.message &&
+      baseKey contentEquals other.baseKey &&
+      content == other.content
+
+  override fun hashCode() = Objects.hash(message, baseKey, content)
 
   suspend fun updateContent(content: String) =
     copy(
-      original =
+      message =
         message.copy(
           content =
             Content.encrypt(Content.encryptCipher(baseKey), content.toByteArray(Charsets.UTF_8))
@@ -59,7 +74,7 @@ class DecryptedMessage(val message: Message, private val baseKey: ByteArray, val
   suspend fun changePassphrase(passphrase: String): DecryptedMessage {
     val keyLabel = Key.Label.Passphrase()
     return copy(
-      original =
+      message =
         message.copy(
           keys =
             (message.keys.filter { it.label !is Key.Label.Passphrase } +
@@ -75,20 +90,17 @@ class DecryptedMessage(val message: Message, private val baseKey: ByteArray, val
 
   suspend fun addKey(keyLabel: Key.Label, cipher: Cipher): Pair<DecryptedMessage, Key> {
     val key = Key(label = keyLabel, content = Content.encrypt(cipher, baseKey))
-    return copy(original = message.copy(keys = message.keys + key)) to key
+    return copy(message = message.copy(keys = message.keys + key)) to key
   }
 
   fun removeKeys(keys: Set<Key>) =
-    copy(original = message.copy(keys = (message.keys.toSet() - keys).toTypedArray()))
+    copy(message = message.copy(keys = (message.keys.toSet() - keys).toTypedArray()))
 
   suspend fun remember(timeout: Duration) {
     instance = this
     delay(timeout.toKotlinDuration())
     instance = null
   }
-
-  private fun copy(original: Message = this.message, content: String = this.content) =
-    DecryptedMessage(message = original, baseKey = baseKey, content = content)
 
   companion object {
     var instance: DecryptedMessage? = null

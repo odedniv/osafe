@@ -27,30 +27,36 @@ data class Content(
   val digest: ByteArray,
   val content: ByteArray,
 ) : Parcelable {
+  override fun equals(other: Any?): Boolean =
+    super.equals(other) ||
+      (other is Content &&
+        cipherType == other.cipherType &&
+        digestType == other.digestType &&
+        iv contentEquals other.iv &&
+        digest contentEquals other.digest &&
+        content contentEquals other.content)
 
-  enum class CipherType {
-    AES_128;
+  override fun hashCode(): Int =
+    Objects.hash(
+      cipherType,
+      digestType,
+      iv.contentHashCode(),
+      digest.contentHashCode(),
+      content.contentHashCode(),
+    )
 
-    companion object {
-      val ALGORITHMS = mapOf(AES_128 to KeyProperties.KEY_ALGORITHM_AES)
-      val BLOCK_MODES = mapOf(AES_128 to KeyProperties.BLOCK_MODE_CBC)
-      val PADDINGS = mapOf(AES_128 to KeyProperties.ENCRYPTION_PADDING_PKCS7)
-    }
+  enum class CipherType(val algorithm: String, val blockMode: String, val padding: String) {
+    AES_128(
+      algorithm = KeyProperties.KEY_ALGORITHM_AES,
+      blockMode = KeyProperties.BLOCK_MODE_CBC,
+      padding = KeyProperties.ENCRYPTION_PADDING_PKCS7,
+    );
 
-    val algorithm by lazy { ALGORITHMS[this]!! }
-    val blockMode by lazy { BLOCK_MODES[this]!! }
-    val padding by lazy { PADDINGS[this]!! }
     val transformation by lazy { "$algorithm/$blockMode/$padding" }
   }
 
-  enum class DigestType {
-    SHA_1;
-
-    companion object {
-      val ALGORITHMS = mapOf(SHA_1 to "SHA-1")
-    }
-
-    val algorithm by lazy { ALGORITHMS[this]!! }
+  enum class DigestType(val algorithm: String) {
+    SHA_1(KeyProperties.DIGEST_SHA1)
   }
 
   companion object {
@@ -150,22 +156,4 @@ data class Content(
     }
     return content
   }
-
-  override fun equals(other: Any?): Boolean =
-    super.equals(other) ||
-      (other is Content &&
-        cipherType == other.cipherType &&
-        digestType == other.digestType &&
-        iv contentEquals other.iv &&
-        digest contentEquals other.digest &&
-        content contentEquals other.content)
-
-  override fun hashCode(): Int =
-    Objects.hash(
-      cipherType,
-      digestType,
-      iv.contentHashCode(),
-      digest.contentHashCode(),
-      content.contentHashCode(),
-    )
 }

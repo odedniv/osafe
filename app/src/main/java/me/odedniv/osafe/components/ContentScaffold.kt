@@ -65,11 +65,8 @@ fun ContentScaffold(
   var showGeneratePassphraseDialog by rememberSaveable { mutableStateOf(false) }
   val valueFocus = remember { FocusRequester() }
 
-  // Sync value and textFieldValue.
-  LaunchedEffect(value) { textFieldValue = textFieldValue.copy(value) }
-  LaunchedEffect(textFieldValue.text) {
-    if (textFieldValue.text != value) onUpdate(textFieldValue.text)
-  }
+  // Invoke onUpdate.
+  LaunchedEffect(textFieldValue) { if (textFieldValue.text != value) onUpdate(textFieldValue.text) }
   // Set focus on edit.
   LaunchedEffect(readOnly) { if (!readOnly) valueFocus.requestFocus() }
 

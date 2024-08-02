@@ -2,6 +2,7 @@ package me.odedniv.osafe.models.encryption
 
 import android.os.Parcel
 import android.os.Parcelable
+import android.security.keystore.KeyProperties
 import java.security.MessageDigest
 import java.time.Instant
 import java.time.temporal.ChronoUnit
@@ -13,14 +14,8 @@ import kotlinx.parcelize.WriteWith
 data class Key(val label: @WriteWith<LabelParceler>() Label, val content: Content) : Parcelable {
   sealed interface Label {
     data class Passphrase(val digestType: DigestType = DEFAULT_DIGEST_TYPE) : Label {
-      enum class DigestType {
-        SHA_512;
-
-        companion object {
-          val ALGORITHMS = mapOf(SHA_512 to "SHA-512")
-        }
-
-        val algorithm by lazy { ALGORITHMS[this]!! }
+      enum class DigestType(val algorithm: String) {
+        SHA_512(KeyProperties.DIGEST_SHA512)
       }
 
       fun digest(passphrase: String): ByteArray =
