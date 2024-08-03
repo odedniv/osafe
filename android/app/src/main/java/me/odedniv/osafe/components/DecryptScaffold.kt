@@ -62,7 +62,7 @@ val TIMEOUTS =
   )
 
 @Composable
-fun ExistingPassphraseScaffold(
+fun DecryptScaffold(
   defaultTimeout: Duration,
   onPassphrase: suspend (String, Duration) -> Boolean,
   hasFingerprint: Boolean,
@@ -157,9 +157,9 @@ fun ExistingPassphraseScaffold(
 
 @Preview
 @Composable
-fun ExistingPassphraseScaffoldPreview() {
+fun DecryptScaffoldPreview() {
   OSafeTheme {
-    ExistingPassphraseScaffold(
+    DecryptScaffold(
       defaultTimeout = TIMEOUTS.keys.first(),
       onPassphrase = { _, _ ->
         delay(1.seconds)

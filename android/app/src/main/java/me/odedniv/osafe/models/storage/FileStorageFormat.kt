@@ -34,6 +34,6 @@ class FileStorageFormat(private val context: Context) : StorageFormat {
     get() = File(context.filesDir, StorageFormat.FILENAME)
 
   companion object {
-    private val DISPATCHER = Dispatchers.IO
+    private val DISPATCHER = Dispatchers.Default
   }
 }

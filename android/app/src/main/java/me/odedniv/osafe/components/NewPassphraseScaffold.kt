@@ -47,8 +47,10 @@ fun NewPassphraseScaffold(
   var showGeneratePassphraseDialog by rememberSaveable { mutableStateOf(false) }
   val passphraseFocus = remember { FocusRequester() }
   val repeatFocus = remember { FocusRequester() }
+  var submitted by rememberSaveable { mutableStateOf(false) }
 
   fun submit() {
+    submitted = true
     onDone(passphrase.text)
   }
 
@@ -85,7 +87,7 @@ fun NewPassphraseScaffold(
         keyboardOptions =
           KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Done),
         keyboardActions = KeyboardActions(onDone = { submit() }),
-        isError = passphrase.text != "" && repeat.text != "" && passphrase != repeat,
+        isError = passphrase.text != "" && repeat.text != "" && passphrase.text != repeat.text,
         modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp).focusRequester(repeatFocus),
       )
       // Generate
@@ -98,7 +100,7 @@ fun NewPassphraseScaffold(
       // Submit
       Button(
         onClick = { submit() },
-        enabled = passphrase.text != "" && passphrase == repeat,
+        enabled = passphrase.text != "" && passphrase.text == repeat.text && !submitted,
         modifier = Modifier.fillMaxWidth(),
       ) {
         Text("SUBMIT")

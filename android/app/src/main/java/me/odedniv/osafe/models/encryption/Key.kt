@@ -1,5 +1,6 @@
 package me.odedniv.osafe.models.encryption
 
+import android.content.SharedPreferences
 import android.os.Parcel
 import android.os.Parcelable
 import android.security.keystore.KeyProperties
@@ -9,6 +10,8 @@ import java.time.temporal.ChronoUnit
 import kotlinx.parcelize.Parceler
 import kotlinx.parcelize.Parcelize
 import kotlinx.parcelize.WriteWith
+import me.odedniv.osafe.models.PREF_BIOMETRIC_CREATED_AT
+import me.odedniv.osafe.models.preferences
 
 @Parcelize
 data class Key(val label: @WriteWith<LabelParceler>() Label, val content: Content) : Parcelable {
@@ -60,3 +63,13 @@ data class Key(val label: @WriteWith<LabelParceler>() Label, val content: Conten
     }
   }
 }
+
+val Array<Key>.passphraseKey: Key?
+  get() = find { it.label is Key.Label.Passphrase }
+
+fun Array<Key>.biometricKey(preferences: SharedPreferences): Key? =
+  preferences
+    .getLong(PREF_BIOMETRIC_CREATED_AT, 0L)
+    .takeIf { it != 0L }
+    ?.let { createdAt -> Key.Label.Biometric(Instant.ofEpochSecond(createdAt)) }
+    ?.let { label -> firstOrNull { it.label == label } }
