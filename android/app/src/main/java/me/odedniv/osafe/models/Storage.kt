@@ -18,12 +18,12 @@ import me.odedniv.osafe.models.storage.FileStorageFormat
 import me.odedniv.osafe.models.storage.StorageFormat
 import me.odedniv.osafe.models.storage.StorageFormat.Content
 
-class Storage(context: Context, googleSignInAccount: GoogleSignInAccount) {
+class Storage(context: Context, googleSignInAccount: GoogleSignInAccount?) {
   private val formats =
-    listOf<StorageFormat>(
-      FileStorageFormat(context),
-      DriveStorageFormat(context, googleSignInAccount),
-    )
+    buildList<StorageFormat> {
+      add(FileStorageFormat(context))
+      if (googleSignInAccount != null) add(DriveStorageFormat(context, googleSignInAccount))
+    }
 
   fun read(): Flow<Message> =
     // List<StorageFormat>
@@ -80,5 +80,7 @@ class Storage(context: Context, googleSignInAccount: GoogleSignInAccount) {
 
   companion object {
     private const val TAG = "Storage"
+
+    const val DEBUG = false
   }
 }

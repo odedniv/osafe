@@ -394,8 +394,8 @@ class AppActivity : FragmentActivity() {
     synchronized(this) {
       if (_storage != null) return@synchronized
       _storage = async {
-        val googleSignInAccount = googleSignIn()
-        if (googleSignInAccount == null) {
+        val googleSignInAccount = if (Storage.DEBUG) null else googleSignIn()
+        if (!Storage.DEBUG && googleSignInAccount == null) {
           finish()
           throw CancellationException()
         }
