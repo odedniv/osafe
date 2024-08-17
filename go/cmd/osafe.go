@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"os/signal"
 	"runtime"
+	"strings"
 	"syscall"
 	"time"
 
@@ -144,7 +145,8 @@ func startEditor(file string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
-	cmd := pipeCmd(exec.CommandContext(ctx, editor(), file))
+	name, args := editorCommand(file)
+	cmd := pipeCmd(exec.CommandContext(ctx, name, args...))
 	if err := cmd.Run(); err != nil {
 		err = errors.Join(err, resetTerminal())
 		return fmt.Errorf("failed waiting for editor: %v", err)
@@ -152,16 +154,22 @@ func startEditor(file string) error {
 	return nil
 }
 
-func editor() string {
-	r := os.Getenv("EDITOR")
-	if r == "" {
+func editorCommand(file string) (string, []string) {
+	name := os.Getenv("EDITOR")
+	if name == "" {
 		fmt.Println("EDITOR environment variable not set.")
-		for r == "" {
+		for name == "" {
 			fmt.Print("Type your preferred editor: ")
-			fmt.Scanln(&r)
+			fmt.Scanln(&name)
 		}
 	}
-	return r
+	args := []string{file}
+	if strings.HasSuffix(name, "vi") || strings.HasSuffix(name, "vim") {
+		// Prevent vimrc
+		args = append(args, "-u")
+		args = append(args, "NONE")
+	}
+	return name, args
 }
 
 func resetTerminal() error {
