@@ -76,12 +76,23 @@ fun ExistingPassphraseScaffold(
   val passphraseFocus = remember { FocusRequester() }
   val snackbarHostState = remember { SnackbarHostState() }
 
-  fun submit() {
+  fun checkPassphrase() {
     loading = true
     coroutineScope.launch {
-      if (!onPassphrase(passphrase.text, timeout).also { loading = false }) {
+      if (!onPassphrase(passphrase.text, timeout)) {
         passphraseFocus.requestFocus()
         snackbarHostState.showSnackbar("Wrong passphrase, try again.")
+        loading = false
+      }
+    }
+  }
+
+  fun checkFingerprint() {
+    loading = true
+    coroutineScope.launch {
+      if (!onFingerprint(timeout)) {
+        snackbarHostState.showSnackbar("Fingerprint authentication failed.")
+        loading = false
       }
     }
   }
@@ -106,12 +117,12 @@ fun ExistingPassphraseScaffold(
         visualTransformation = PasswordVisualTransformation(),
         keyboardOptions =
           KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Done),
-        keyboardActions = KeyboardActions(onDone = { submit() }),
+        keyboardActions = KeyboardActions(onDone = { checkPassphrase() }),
         modifier = Modifier.fillMaxWidth().focusRequester(passphraseFocus).padding(bottom = 16.dp),
       )
       // Set focus or check fingerprint on start.
       LaunchedEffect(Unit) {
-        if (hasFingerprint) onFingerprint(timeout) else passphraseFocus.requestFocus()
+        if (hasFingerprint) checkFingerprint() else passphraseFocus.requestFocus()
       }
       // Expiration
       Text("Ask me again: ${TIMEOUTS[timeout]}")
@@ -124,7 +135,7 @@ fun ExistingPassphraseScaffold(
       )
       // Submit
       Button(
-        onClick = { submit() },
+        onClick = { checkPassphrase() },
         enabled = passphrase.text.isNotEmpty() && !loading,
         modifier = Modifier.fillMaxWidth().padding(bottom = 32.dp),
       ) {
@@ -133,17 +144,7 @@ fun ExistingPassphraseScaffold(
       // Fingerprint
       if (hasFingerprint) {
         Row(horizontalArrangement = Arrangement.Center, modifier = Modifier.fillMaxWidth()) {
-          TextButton(
-            enabled = !loading,
-            onClick = {
-              loading = true
-              coroutineScope.launch {
-                if (!onFingerprint(timeout).also { loading = false }) {
-                  snackbarHostState.showSnackbar("Fingerprint authentication failed.")
-                }
-              }
-            },
-          ) {
+          TextButton(enabled = !loading, onClick = { checkFingerprint() }) {
             Row(verticalAlignment = Alignment.CenterVertically) {
               Icon(Icons.Default.Fingerprint, "Fingerprint")
               Text("Use fingerprint", modifier = Modifier.padding(start = 8.dp))

@@ -135,6 +135,7 @@ class AppActivity : FragmentActivity() {
       var state by rememberSaveable { mutableStateOf(initialState) }
       var timeout: Duration by rememberSaveable { mutableStateOf(defaultTimeout) }
       var biometricKey: Key? by rememberSaveable { mutableStateOf(null) }
+      var otherFingerprints: Int by rememberSaveable { mutableStateOf(0) }
       var writing: Boolean by rememberSaveable { mutableStateOf(false) }
       var generatePassphraseConfig: GeneratePassphraseConfig by rememberSaveable {
         mutableStateOf(defaultGeneratePassphraseConfig)
@@ -193,6 +194,15 @@ class AppActivity : FragmentActivity() {
       }
       // Stop remember timeout.
       LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { rememberDecryptedJob?.cancel() }
+
+      // Counting other fingerprints.
+      LaunchedEffect(state) {
+        val readyState = state as? State.Ready ?: return@LaunchedEffect
+        otherFingerprints =
+          readyState.decrypted.message.keys.count {
+            it != biometricKey && it.label is Key.Label.Biometric
+          }
+      }
 
       @Composable
       fun generatePassphraseDialog(onDone: (String) -> Unit, onDismiss: () -> Unit) {
@@ -358,10 +368,7 @@ class AppActivity : FragmentActivity() {
                   }
                 biometricKey = null
               },
-              otherFingerprints =
-                state.asReady.decrypted.message.keys.count {
-                  it != biometricKey && it.label is Key.Label.Biometric
-                },
+              otherFingerprints = otherFingerprints,
               onRemoveOtherFingerprints = {
                 state.asReady.decrypted =
                   state.asReady.decrypted
@@ -371,7 +378,7 @@ class AppActivity : FragmentActivity() {
                         .toSet()
                     )
                     .also { storage().write(it.message) }
-                biometricKey = null
+                otherFingerprints = 0
               },
               generatePassphraseDialog = { onDone, onDismiss ->
                 generatePassphraseDialog(onDone, onDismiss)

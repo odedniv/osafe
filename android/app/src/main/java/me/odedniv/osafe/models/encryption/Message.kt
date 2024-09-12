@@ -34,7 +34,7 @@ data class Message(val keys: Array<Key>, val content: Content) : Parcelable {
     return DecryptedMessage(message = this, baseKey = baseKey, content = decryptedContent)
   }
 
-  fun removeKeys(keys: Set<Key>) = copy(keys = (keys.toSet() - keys).toTypedArray())
+  fun removeKeys(keys: Set<Key>) = copy(keys = (this.keys.toSet() - keys).toTypedArray())
 
   fun encode(): ByteArray {
     return GSON.toJson(this).toByteArray(Charsets.UTF_8)
