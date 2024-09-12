@@ -16,6 +16,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.core.content.ContextCompat
@@ -132,6 +133,7 @@ class AppActivity : FragmentActivity() {
 
     setContent {
       val navController = rememberNavController()
+      val coroutineScope = rememberCoroutineScope()
       var state by rememberSaveable { mutableStateOf(initialState) }
       var timeout: Duration by rememberSaveable { mutableStateOf(defaultTimeout) }
       var biometricKey: Key? by rememberSaveable { mutableStateOf(null) }
@@ -142,27 +144,29 @@ class AppActivity : FragmentActivity() {
       }
 
       // Load from storage.
-      LaunchedEffect(Unit) {
-        if (state != State.Unloaded) return@LaunchedEffect
-        storage()
-          .read()
-          .onEmpty {
-            navController.navigate(
-              Destinations.NewPassphrase,
-              navOptions { popUpTo(Destinations.Loading) { inclusive = true } },
-            )
-          }
-          .collect { message ->
-            biometricKey = message.keys.firstOrNull { it.label == defaultBiometricKeyLabel }
-            state = State.Encrypted(message)
-            navController.navigate(
-              Destinations.ExistingPassphrase,
-              navOptions {
-                launchSingleTop = true
-                popUpTo(Destinations.Loading) { inclusive = true }
-              },
-            )
-          }
+      LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
+        coroutineScope.launch {
+          if (state != State.Unloaded) return@launch
+          storage()
+            .read()
+            .onEmpty {
+              navController.navigate(
+                Destinations.NewPassphrase,
+                navOptions { popUpTo(Destinations.Loading) { inclusive = true } },
+              )
+            }
+            .collect { message ->
+              biometricKey = message.keys.firstOrNull { it.label == defaultBiometricKeyLabel }
+              state = State.Encrypted(message)
+              navController.navigate(
+                Destinations.ExistingPassphrase,
+                navOptions {
+                  launchSingleTop = true
+                  popUpTo(Destinations.Loading) { inclusive = true }
+                },
+              )
+            }
+        }
       }
 
       // Remembering decrypted message.

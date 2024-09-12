@@ -17,7 +17,6 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -32,6 +31,8 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import me.odedniv.osafe.theme.OSafeTheme
 
 @Composable
@@ -74,7 +75,8 @@ fun NewPassphraseScaffold(
         keyboardActions = KeyboardActions(onDone = { repeatFocus.requestFocus() }),
         modifier = Modifier.fillMaxWidth().focusRequester(passphraseFocus),
       )
-      LaunchedEffect(Unit) { passphraseFocus.requestFocus() } // Set focus on start.
+      // Set focus on start.
+      LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { passphraseFocus.requestFocus() }
       // Repeat
       TextField(
         value = repeat,

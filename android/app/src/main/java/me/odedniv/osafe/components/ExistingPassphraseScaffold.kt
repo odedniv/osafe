@@ -25,7 +25,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -42,6 +41,8 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import java.time.Duration
 import kotlin.math.roundToInt
 import kotlin.time.Duration.Companion.seconds
@@ -121,7 +122,7 @@ fun ExistingPassphraseScaffold(
         modifier = Modifier.fillMaxWidth().focusRequester(passphraseFocus).padding(bottom = 16.dp),
       )
       // Set focus or check fingerprint on start.
-      LaunchedEffect(Unit) {
+      LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
         if (hasFingerprint) checkFingerprint() else passphraseFocus.requestFocus()
       }
       // Expiration
