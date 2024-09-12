@@ -57,9 +57,14 @@ fun SearchField(text: String, onFind: (TextFieldValue) -> Unit, modifier: Modifi
     }
     matches = text.findAllPositions(query)
     val previousCurrentMatchIndex = currentMatchIndex
+    if (matches.isNotEmpty()) {
+      currentMatchIndex = 0
+      if (previousCurrentMatchIndex == 0) triggerOnFind()
+    } else {
+      currentMatchIndex = -1
+    }
     currentMatchIndex = if (matches.isEmpty()) -1 else 0
     // Avoid double trigger (from changed currentMatchIndex).
-    if (previousCurrentMatchIndex == currentMatchIndex) triggerOnFind()
   }
   // Change match
   LaunchedEffect(currentMatchIndex) {
