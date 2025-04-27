@@ -1,9 +1,13 @@
 package me.odedniv.osafe.components
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
@@ -14,6 +18,8 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
+import androidx.compose.material3.ListItemDefaults
+import androidx.compose.material3.SearchBarDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -24,6 +30,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.tooling.preview.Preview
@@ -34,7 +41,7 @@ import me.odedniv.osafe.theme.OSafeTheme
 fun SearchField(text: String, onFind: (TextFieldValue) -> Unit, modifier: Modifier = Modifier) {
   val keywords = text.split(WORD_SEPARATOR_PATTERN)
   var query by rememberSaveable { mutableStateOf("") }
-  var active by rememberSaveable { mutableStateOf(false) }
+  var expanded by rememberSaveable { mutableStateOf(false) }
   var matches by rememberSaveable { mutableStateOf(listOf<Int>()) }
   var currentMatchIndex by rememberSaveable { mutableIntStateOf(-1) }
 
@@ -73,76 +80,94 @@ fun SearchField(text: String, onFind: (TextFieldValue) -> Unit, modifier: Modifi
   }
 
   @OptIn(ExperimentalMaterial3Api::class)
-  (DockedSearchBar(
-    query = query,
-    onQueryChange = { query = it },
-    onSearch = {
-      query = it
-      active = false
-    },
-    active = active,
-    onActiveChange = { active = it },
-    placeholder = { Text("Search...") },
-    enabled = text.isNotBlank(),
-    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
-    trailingIcon = {
-      if (currentMatchIndex == -1) return@DockedSearchBar
-      Row(verticalAlignment = Alignment.CenterVertically) {
-        IconButton(
-          onClick = {
-            currentMatchIndex =
-              if (currentMatchIndex > 0) currentMatchIndex - 1 else matches.size - 1
+  DockedSearchBar(
+    inputField = {
+      SearchBarDefaults.InputField(
+        query = query,
+        onQueryChange = { query = it },
+        onSearch = {
+          query = it
+          expanded = false
+        },
+        expanded = expanded,
+        onExpandedChange = { expanded = it },
+        enabled = text.isNotBlank(),
+        placeholder = { Text("Search...") },
+        leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+        trailingIcon = {
+          if (currentMatchIndex == -1) return@InputField
+          Row(verticalAlignment = Alignment.CenterVertically) {
+            IconButton(
+              onClick = {
+                currentMatchIndex =
+                  if (currentMatchIndex > 0) currentMatchIndex - 1 else matches.size - 1
+              }
+            ) {
+              Icon(Icons.Default.KeyboardArrowUp, "Previous")
+            }
+            Text("${currentMatchIndex + 1}/${matches.size}")
+            IconButton(
+              onClick = {
+                currentMatchIndex =
+                  if (currentMatchIndex < matches.size - 1) currentMatchIndex + 1 else 0
+              }
+            ) {
+              Icon(Icons.Default.KeyboardArrowDown, "Next")
+            }
           }
-        ) {
-          Icon(Icons.Default.KeyboardArrowUp, "Previous")
-        }
-        Text("${currentMatchIndex + 1}/${matches.size}")
-        IconButton(
-          onClick = {
-            currentMatchIndex =
-              if (currentMatchIndex < matches.size - 1) currentMatchIndex + 1 else 0
-          }
-        ) {
-          Icon(Icons.Default.KeyboardArrowDown, "Next")
-        }
-      }
+        },
+        interactionSource = null,
+      )
     },
+    expanded = expanded,
+    onExpandedChange = { expanded = it },
     modifier = modifier,
+    shape = SearchBarDefaults.dockedShape,
+    tonalElevation = SearchBarDefaults.TonalElevation,
+    shadowElevation = SearchBarDefaults.ShadowElevation,
   ) {
     val relevantKeywords =
       keywords.asSequence().filter { query.lowercase() in it.lowercase() }.distinct()
-    for (keyword in relevantKeywords) {
-      ListItem(
-        headlineContent = { Text(keyword) },
-        modifier =
-          Modifier.clickable {
-              query = keyword
-              active = false
-            }
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 4.dp),
-      )
-      HorizontalDivider()
+    Column(Modifier.verticalScroll(rememberScrollState())) {
+      for (keyword in relevantKeywords) {
+        ListItem(
+          headlineContent = { Text(keyword) },
+          colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+          modifier =
+            Modifier.clickable {
+                query = keyword
+                expanded = false
+              }
+              .fillMaxWidth()
+              .padding(horizontal = 16.dp, vertical = 4.dp),
+        )
+        HorizontalDivider()
+      }
     }
-  })
+  }
 }
 
 /** Returns all start positions of query (ignore case) in this. */
-private fun String.findAllPositions(query: String) =
-  buildList<Int> {
-    var last = -1
-    while (true) {
-      val next = indexOf(query, startIndex = last + 1, ignoreCase = true)
-      if (next == -1) break
-      add(next)
-      last = next
-    }
+private fun String.findAllPositions(query: String): List<Int> = buildList {
+  var last = -1
+  while (true) {
+    val next = indexOf(query, startIndex = last + 1, ignoreCase = true)
+    if (next == -1) break
+    add(next)
+    last = next
   }
+}
 
 private val WORD_SEPARATOR_PATTERN = "\\W+".toRegex()
 
 @Preview
 @Composable
 fun SearchFieldPreview() {
-  OSafeTheme { SearchField(text = "There are many. are options", onFind = {}) }
+  OSafeTheme {
+    SearchField(
+      text = "There are many lots. are options",
+      onFind = {},
+      modifier = Modifier.heightIn(max = 300.dp), // Test scrolling.
+    )
+  }
 }

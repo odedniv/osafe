@@ -3,6 +3,7 @@ package me.odedniv.osafe.components
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
@@ -25,6 +26,7 @@ import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -33,11 +35,15 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.toSize
 import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -163,12 +169,19 @@ fun ContentScaffold(
       }
     },
   ) { innerPadding ->
-    Column(modifier = Modifier.padding(innerPadding)) {
+    var totalSize by remember { mutableStateOf(Size.Zero) }
+    Column(
+      modifier =
+        Modifier.padding(innerPadding).onGloballyPositioned { totalSize = it.size.toSize() }
+    ) {
       // Search
       SearchField(
         text = textFieldValue.text,
         onFind = { textFieldValue = it },
-        modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+        modifier =
+          Modifier.fillMaxWidth()
+            .padding(bottom = 8.dp)
+            .heightIn(max = LocalDensity.current.run { (0.5f * totalSize.height).toDp() }),
       )
       // Content
       TextField(
@@ -218,6 +231,7 @@ fun ContentScaffoldPreview() {
   var value by remember { mutableStateOf("") }
   var writing by remember { mutableStateOf(false) }
   var hasFingerprint by remember { mutableStateOf(false) }
+  var otherFingerprints by remember { mutableIntStateOf(3) }
 
   OSafeTheme {
     ContentScaffold(
@@ -243,10 +257,10 @@ fun ContentScaffoldPreview() {
         delay(1.seconds)
         hasFingerprint = false
       },
-      otherFingerprints = 3,
+      otherFingerprints = otherFingerprints,
       onRemoveOtherFingerprints = {
         delay(1.seconds)
-        hasFingerprint = false
+        otherFingerprints = 0
       },
       generatePassphraseDialog = { onDone, onDismiss ->
         IGeneratePassphraseDialogPreview(onDone = onDone, onDismiss = onDismiss)
