@@ -96,12 +96,6 @@ data class DecryptedMessage(
   fun removeKeys(keys: Set<Key>) =
     copy(message = message.copy(keys = (message.keys.toSet() - keys).toTypedArray()))
 
-  suspend fun remember(timeout: Duration) {
-    instance = this
-    delay(timeout.toKotlinDuration())
-    instance = null
-  }
-
   companion object {
     var instance: DecryptedMessage? = null
       private set

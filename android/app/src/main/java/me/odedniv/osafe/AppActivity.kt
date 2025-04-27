@@ -15,6 +15,7 @@ import androidx.biometric.BiometricPrompt
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -44,6 +45,7 @@ import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 import kotlin.coroutines.suspendCoroutine
 import kotlin.time.Duration.Companion.seconds
+import kotlin.time.toKotlinDuration
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Job
@@ -117,7 +119,6 @@ class AppActivity : FragmentActivity() {
     window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
     enableEdgeToEdge()
 
-    val initialState: State = DecryptedMessage.instance?.let { State.Ready(it) } ?: State.Unloaded
     val biometricSupported =
       BiometricManager.from(this).canAuthenticate(BIOMETRIC_STRONG) == BIOMETRIC_SUCCESS
     val defaultTimeout =
@@ -129,15 +130,15 @@ class AppActivity : FragmentActivity() {
         ?.let { Key.Label.Biometric(Instant.ofEpochSecond(it)) }
     val defaultGeneratePassphraseConfig = GeneratePassphraseConfig.readPreferences(preferences)
 
-    var rememberDecryptedJob: Job? = null
+    var forgetDecryptedJob: Job? = null
 
     setContent {
       val navController = rememberNavController()
       val coroutineScope = rememberCoroutineScope()
-      var state by rememberSaveable { mutableStateOf(initialState) }
+      var state: State by rememberSaveable { mutableStateOf(State.Unloaded) }
       var timeout: Duration by rememberSaveable { mutableStateOf(defaultTimeout) }
       var biometricKey: Key? by rememberSaveable { mutableStateOf(null) }
-      var otherFingerprints: Int by rememberSaveable { mutableStateOf(0) }
+      var otherFingerprints: Int by rememberSaveable { mutableIntStateOf(0) }
       var writing: Boolean by rememberSaveable { mutableStateOf(false) }
       var generatePassphraseConfig: GeneratePassphraseConfig by rememberSaveable {
         mutableStateOf(defaultGeneratePassphraseConfig)
@@ -169,35 +170,42 @@ class AppActivity : FragmentActivity() {
         }
       }
 
-      // Remembering decrypted message.
+      fun forgetDecrypted() {
+        val ready = state as? State.Ready ?: return
+        state = State.Encrypted(ready.decrypted.message)
+        navController.navigate(
+          Destinations.ExistingPassphrase,
+          navOptions {
+            launchSingleTop = true
+            popUpTo(Destinations.Content) { inclusive = true }
+          },
+        )
+      }
+
+      // Forgetting decrypted message.
       LifecycleEventEffect(Lifecycle.Event.ON_PAUSE) {
-        rememberDecryptedJob?.cancel()
-        val currentDecrypted =
-          DecryptedMessage.instance
-            ?: (state as? State.Ready)?.decrypted
-            ?: return@LifecycleEventEffect
-        rememberDecryptedJob =
+        forgetDecryptedJob?.cancel(AvoidForgetCancellationException())
+        forgetDecryptedJob =
           lifecycleScope.launch {
-            currentDecrypted.remember(timeout)
-            writeJob.value?.join() // Wait for writing to complete.
-            (state as? State.Ready)?.let {
-              state = State.Encrypted(it.decrypted.message)
-              navController.navigate(
-                Destinations.ExistingPassphrase,
-                navOptions {
-                  launchSingleTop = true
-                  popUpTo(Destinations.Content) { inclusive = true }
-                },
-              )
+            var forget = true
+            try {
+              delay(timeout.toKotlinDuration())
+              writeJob.value?.join() // Wait for writing to complete.
+            } catch (_: AvoidForgetCancellationException) {
+              forget = false
+            } finally {
+              if (forget) forgetDecrypted()
             }
           }
+      }
+      // Stop forget timeout.
+      LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
+        forgetDecryptedJob?.cancel(AvoidForgetCancellationException())
       }
       // Speeding up write.
       LifecycleEventEffect(Lifecycle.Event.ON_PAUSE) {
         delayWriteJob.value?.cancel(SpeedWriteCancellationException())
       }
-      // Stop remember timeout.
-      LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { rememberDecryptedJob?.cancel() }
 
       // Counting other fingerprints.
       LaunchedEffect(state) {
@@ -400,6 +408,8 @@ class AppActivity : FragmentActivity() {
   }
 
   private class SpeedWriteCancellationException : CancellationException()
+
+  private class AvoidForgetCancellationException : CancellationException()
 
   private suspend fun storage(): Storage = coroutineScope {
     synchronized(this) {

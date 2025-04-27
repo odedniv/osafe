@@ -8,12 +8,12 @@ plugins {
 
 android {
     namespace "me.odedniv.osafe"
-    compileSdk 34
+    compileSdk 35
 
     defaultConfig {
         applicationId 'me.odedniv.osafe'
         minSdk 26
-        targetSdk 34
+        targetSdk 35
         versionCode 15
         versionName "1.1.2"
 
